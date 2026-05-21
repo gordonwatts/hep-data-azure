@@ -59,6 +59,7 @@ class RunnerTests(TestCase):
             with override_settings(
                 ARTIFACT_STORAGE_ROOT=artifact_dir,
                 PLOT_RUNNER_ROOT=Path(artifact_dir) / "plot-runner",
+                PLOT_DRIVER_EXECUTOR="fake",
             ):
                 user = self._approved_user("runner-success")
                 queue_client = DatabaseQueueClient()
@@ -101,6 +102,7 @@ class RunnerTests(TestCase):
             with override_settings(
                 ARTIFACT_STORAGE_ROOT=artifact_dir,
                 PLOT_RUNNER_ROOT=Path(artifact_dir) / "plot-runner",
+                PLOT_DRIVER_EXECUTOR="fake",
             ):
                 user = self._approved_user("runner-fail")
                 queue_client = DatabaseQueueClient()
@@ -124,6 +126,7 @@ class RunnerTests(TestCase):
             with override_settings(
                 ARTIFACT_STORAGE_ROOT=artifact_dir,
                 PLOT_RUNNER_ROOT=Path(artifact_dir) / "plot-runner",
+                PLOT_DRIVER_EXECUTOR="fake",
             ):
                 user = self._approved_user("runner-loop")
                 queue_client = DatabaseQueueClient()
@@ -181,6 +184,7 @@ class RunnerTests(TestCase):
             with override_settings(
                 ARTIFACT_STORAGE_ROOT=artifact_dir,
                 PLOT_RUNNER_ROOT=Path(artifact_dir) / "plot-runner",
+                PLOT_DRIVER_EXECUTOR="fake",
             ):
                 user = self._approved_user("runner-terminal")
                 queue_client = DatabaseQueueClient()
@@ -205,6 +209,7 @@ class RunnerTests(TestCase):
             with override_settings(
                 ARTIFACT_STORAGE_ROOT=artifact_dir,
                 PLOT_RUNNER_ROOT=Path(artifact_dir) / "plot-runner",
+                PLOT_DRIVER_EXECUTOR="fake",
             ):
                 user = self._approved_user("runner-retry")
                 queue_client = DatabaseQueueClient()
@@ -239,6 +244,7 @@ class RunnerTests(TestCase):
             with override_settings(
                 ARTIFACT_STORAGE_ROOT=artifact_dir,
                 PLOT_RUNNER_ROOT=Path(artifact_dir) / "plot-runner",
+                PLOT_DRIVER_EXECUTOR="fake",
                 PLOT_RUNNER_DRIVER="python -m portal.plot_driver",
             ):
                 user = self._approved_user("runner-driver-command")
@@ -261,6 +267,8 @@ class RunnerTests(TestCase):
                         "python",
                         "-m",
                         "portal.plot_driver",
+                        "--executor",
+                        "fake",
                         "--job-id",
                         str(job.submission_id),
                         "--work-dir",
@@ -278,6 +286,7 @@ class RunnerTests(TestCase):
             with override_settings(
                 ARTIFACT_STORAGE_ROOT=artifact_dir,
                 PLOT_RUNNER_ROOT=Path(artifact_dir) / "plot-runner",
+                PLOT_DRIVER_EXECUTOR="fake",
                 PLOT_RUNNER_DRIVER="python -m portal.plot_driver",
             ):
                 user = self._approved_user("runner-command-success")
@@ -315,6 +324,7 @@ class RunnerTests(TestCase):
             with override_settings(
                 ARTIFACT_STORAGE_ROOT=artifact_dir,
                 PLOT_RUNNER_ROOT=Path(artifact_dir) / "plot-runner",
+                PLOT_DRIVER_EXECUTOR="fake",
                 PLOT_RUNNER_DRIVER="python -m portal.plot_driver",
             ):
                 user = self._approved_user("runner-command-fail")
@@ -344,6 +354,7 @@ class RunnerTests(TestCase):
             with override_settings(
                 ARTIFACT_STORAGE_ROOT=artifact_dir,
                 PLOT_RUNNER_ROOT=Path(artifact_dir) / "plot-runner",
+                PLOT_DRIVER_EXECUTOR="fake",
                 PLOT_RUNNER_DRIVER="python -m portal.plot_driver",
                 PLOT_RUNNER_TIMEOUT_SECONDS=1,
             ):

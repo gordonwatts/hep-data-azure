@@ -43,11 +43,14 @@ The optional repo-owned plot-runner image is built from `Dockerfile.plot-runner`
 and available through the `plot-runner` service:
 
 ```powershell
-docker compose run --rm plot-runner plot_runner --job-id <uuid>
+docker compose run --rm plot-runner run --job-id <uuid>
 ```
 
 That command writes a per-job workdir under `tmp/plot-runner/<job_id>` with the
 prompt, runner context, and generated files for inspection.
+
+The `plot-runner` service expects `OPENAI_API_KEY` at runtime when you switch it
+to Codex mode. The key is not baked into the image.
 
 ## Demo credentials
 

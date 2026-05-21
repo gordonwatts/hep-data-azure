@@ -191,6 +191,8 @@ def build_plot_driver_command(
     command = shlex.split(driver) if isinstance(driver, str) else list(driver)
     return [
         *command,
+        "--executor",
+        getattr(settings, "PLOT_DRIVER_EXECUTOR", "fake"),
         "--job-id",
         str(job.submission_id),
         "--work-dir",

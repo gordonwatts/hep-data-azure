@@ -229,7 +229,7 @@ Connection to watch: use fakes for fast unit tests and Azurite/Postgres for inte
 
 ### 15. Real Plot Runner Contract
 
-- [ ] Implement the real plot-runner command with `plot-runner run --job-id <uuid>`.
+- [x] Implement the real plot-runner command with `plot-runner run --job-id <uuid>`.
 - [x] Load job prompt, backend profile, dataset, database, storage, and secret config from services/settings.
 - [x] Create an isolated working directory per job.
 - [x] Build the Codex prompt exactly from the spec pattern: `$iris-hep Please write a stand-alone python file that we can use uv to run (and auto install) that will do the following. It should produce a plot and a file comments.md with comments as output: <plot-question>`.

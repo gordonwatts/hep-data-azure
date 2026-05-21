@@ -12,6 +12,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g @openai/codex
+RUN pip install --no-cache-dir uv
 
 COPY pyproject.toml README.md uv.lock /app/
 COPY hep_data_azure /app/hep_data_azure
@@ -19,6 +20,9 @@ COPY portal /app/portal
 COPY templates /app/templates
 COPY static /app/static
 COPY manage.py /app/manage.py
+COPY plot-runner /app/plot-runner
+
+RUN chmod +x /app/plot-runner
 
 RUN pip install --no-cache-dir .
 
@@ -35,4 +39,4 @@ RUN bash -euxo pipefail -c '\
     done; \
     rm -rf "${tmp_dir}"'
 
-ENTRYPOINT ["python", "manage.py"]
+ENTRYPOINT ["/app/plot-runner"]
