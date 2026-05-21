@@ -1,0 +1,145 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: hepdata
+      POSTGRES_PASSWORD: hepdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hepdata -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:3.33.0
+    command:
+      [
+        "azurite",
+        "--blobHost",
+        "0.0.0.0",
+        "--blobPort",
+        "10000",
+        "--queueHost",
+        "0.0.0.0",
+        "--queuePort",
+        "10001",
+        "--location",
+        "/data",
+        "--debug",
+        "/data/debug.log",
+      ]
+    volumes:
+      - azurite-data:/data
+
+  migrate:
+    build: .
+    command: ["migrate"]
+    environment:
+      DJANGO_SECRET_KEY: docker-secret-key
+      DJANGO_DEBUG: "1"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,web
+      DATABASE_URL: postgresql://hepdata:hepdata@postgres:5432/postgres
+      QUEUE_BACKEND: database
+      ARTIFACT_STORAGE_ROOT: /artifacts
+      AZURE_STORAGE_CONNECTION_STRING: UseDevelopmentStorage=true
+      AZURE_QUEUE_ENDPOINT: http://azurite:10001/devstoreaccount1
+      AZURE_BLOB_ENDPOINT: http://azurite:10000/devstoreaccount1
+    volumes:
+      - artifact-data:/artifacts
+      - ./secrets:/app/secrets:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  bootstrap:
+    build: .
+    command: ["bootstrap_local_demo"]
+    environment:
+      DJANGO_SECRET_KEY: docker-secret-key
+      DJANGO_DEBUG: "1"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,web
+      DATABASE_URL: postgresql://hepdata:hepdata@postgres:5432/postgres
+      QUEUE_BACKEND: database
+      ARTIFACT_STORAGE_ROOT: /artifacts
+      AZURE_STORAGE_CONNECTION_STRING: UseDevelopmentStorage=true
+      AZURE_QUEUE_ENDPOINT: http://azurite:10001/devstoreaccount1
+      AZURE_BLOB_ENDPOINT: http://azurite:10000/devstoreaccount1
+    volumes:
+      - artifact-data:/artifacts
+      - ./secrets:/app/secrets:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  web:
+    build: .
+    command: ["runserver", "0.0.0.0:8000"]
+    environment:
+      DJANGO_SECRET_KEY: docker-secret-key
+      DJANGO_DEBUG: "1"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,web
+      DATABASE_URL: postgresql://hepdata:hepdata@postgres:5432/postgres
+      QUEUE_BACKEND: database
+      ARTIFACT_STORAGE_ROOT: /artifacts
+      AZURE_STORAGE_CONNECTION_STRING: UseDevelopmentStorage=true
+      AZURE_QUEUE_ENDPOINT: http://azurite:10001/devstoreaccount1
+      AZURE_BLOB_ENDPOINT: http://azurite:10000/devstoreaccount1
+    volumes:
+      - artifact-data:/artifacts
+      - ./secrets:/app/secrets:ro
+    ports:
+      - "${WEB_PORT:-8000}:8000"
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+
+  local-job-runner:
+    build: .
+    command: ["run_local_job_runner", "--poll-interval", "1"]
+    environment:
+      DJANGO_SECRET_KEY: docker-secret-key
+      DJANGO_DEBUG: "1"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,web
+      DATABASE_URL: postgresql://hepdata:hepdata@postgres:5432/postgres
+      QUEUE_BACKEND: database
+      ARTIFACT_STORAGE_ROOT: /artifacts
+      AZURE_STORAGE_CONNECTION_STRING: UseDevelopmentStorage=true
+      AZURE_QUEUE_ENDPOINT: http://azurite:10001/devstoreaccount1
+      AZURE_BLOB_ENDPOINT: http://azurite:10000/devstoreaccount1
+    volumes:
+      - artifact-data:/artifacts
+      - ./secrets:/app/secrets:ro
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+
+  plot-runner:
+    build: .
+    command: ["plot_runner"]
+    profiles: ["plot"]
+    environment:
+      DJANGO_SECRET_KEY: docker-secret-key
+      DJANGO_DEBUG: "1"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,web
+      DATABASE_URL: postgresql://hepdata:hepdata@postgres:5432/postgres
+      QUEUE_BACKEND: database
+      ARTIFACT_STORAGE_ROOT: /artifacts
+      AZURE_STORAGE_CONNECTION_STRING: UseDevelopmentStorage=true
+      AZURE_QUEUE_ENDPOINT: http://azurite:10001/devstoreaccount1
+      AZURE_BLOB_ENDPOINT: http://azurite:10000/devstoreaccount1
+    volumes:
+      - artifact-data:/artifacts
+      - ./secrets:/app/secrets:ro
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-data:
+  azurite-data:
+  artifact-data:

@@ -28,6 +28,24 @@ Low-cost Django plot portal.
    .\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8000
    ```
 
+## Docker Compose
+
+The local stack is wired for Compose as well:
+
+```powershell
+docker compose up --build
+```
+
+That starts Postgres, Azurite, the web app, and the local job runner. The migrate
+service also seeds the local `admin` and `demo` users automatically.
+
+The optional repo-owned plot-runner image is available through the `plot-runner`
+service:
+
+```powershell
+docker compose run --rm plot-runner plot_runner --job-id <uuid>
+```
+
 ## Demo credentials
 
 - Admin: `admin` / `admin123`
@@ -43,4 +61,5 @@ Low-cost Django plot portal.
 - Clone/resubmit flow
 - Admin approval page
 
-The current local queue is still an in-process test bridge. The next step is to replace that with a shared local queue backend so backend execution can run in a separate process.
+The local queue runner now runs as a separate process, and the next step is to
+replace the filesystem artifact store with an Azurite-backed blob adapter.

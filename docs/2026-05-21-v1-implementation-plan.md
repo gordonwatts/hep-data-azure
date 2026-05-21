@@ -207,18 +207,18 @@ Connection to watch: the local runner simulates the production trigger path. It 
 
 ### 13. Docker Compose Local Stack
 
-- [ ] Add Dockerfiles for web/local runner and a repo-owned plot-runner image or command container.
-- [ ] Add `docker-compose.yml` with `web`, `postgres`, `azurite`, `local-job-runner`, and optional `plot-runner`.
-- [ ] Add a migration/init path so the app starts against an empty database.
-- [ ] Mount local secret files such as `./secrets/servicex.yaml` without committing them.
-- [ ] Configure web and runner to share Postgres and Azurite endpoints.
-- [ ] Verification: `docker compose config`, app startup, migrations, submit job, local runner completes fake job, artifacts survive container restart.
+- [x] Add Dockerfiles for web/local runner and a repo-owned plot-runner image or command container.
+- [x] Add `docker-compose.yml` with `web`, `postgres`, `azurite`, `local-job-runner`, and optional `plot-runner`.
+- [x] Add a migration/init path so the app starts against an empty database.
+- [x] Mount local secret files such as `./secrets/servicex.yaml` without committing them.
+- [x] Configure web and runner to share Postgres and Azurite endpoints.
+- [x] Verification: `docker compose config`, app startup, migrations, submit job, local runner completes fake job, artifacts survive container restart.
 
 Connection to watch: the web container must not require Docker socket access. Only the local runner or test harness may invoke a plot-runner container locally.
 
 ### 14. Integration Test Harness
 
-- [ ] Add tests that exercise submit -> queue -> local runner -> fake plot runner -> blob artifact -> web result.
+- [x] Add tests that exercise submit -> queue -> local runner -> fake plot runner -> blob artifact -> web result.
 - [ ] Add tests for cross-user artifact/job access denial.
 - [ ] Add failed-job tests that verify failure text and logs appear.
 - [ ] Add restart/persistence test instructions or automated Compose smoke where practical.
