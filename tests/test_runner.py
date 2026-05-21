@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 from pathlib import Path
 from unittest import mock
@@ -10,7 +11,7 @@ from django.test import TestCase, override_settings
 
 from portal.models import ApprovalState, ArtifactKind, JobStatus, QueueMessageRecord
 from portal.queue import DatabaseQueueClient, QueueMessage, QueuePayload
-from portal.runner import run_fake_plot_job
+from portal.runner import RunnerResult, build_codex_prompt, run_fake_plot_job
 from portal.services import create_queued_job
 
 
@@ -48,7 +49,10 @@ class RunnerTests(TestCase):
     @override_settings(QUEUE_BACKEND="database")
     def test_fake_runner_success_creates_artifacts_and_code_endpoint(self):
         with self._artifact_root() as artifact_dir:
-            with override_settings(ARTIFACT_STORAGE_ROOT=artifact_dir):
+            with override_settings(
+                ARTIFACT_STORAGE_ROOT=artifact_dir,
+                PLOT_RUNNER_ROOT=Path(artifact_dir) / "plot-runner",
+            ):
                 user = self._approved_user("runner-success")
                 queue_client = DatabaseQueueClient()
                 job = create_queued_job(
@@ -73,11 +77,24 @@ class RunnerTests(TestCase):
                     "print(&#x27;hello from the fake plot runner&#x27;)",
                     code_response.content.decode("utf-8"),
                 )
+                self.assertTrue(result.work_dir.exists())
+                self.assertTrue(result.prompt_path.exists())
+                self.assertTrue(result.context_path.exists())
+                self.assertEqual(
+                    result.prompt_path.read_text(encoding="utf-8"),
+                    build_codex_prompt(result.job),
+                )
+                context = json.loads(result.context_path.read_text(encoding="utf-8"))
+                self.assertEqual(context["backend_profile"], "rdf")
+                self.assertEqual(context["job_id"], str(job.submission_id))
 
     @override_settings(QUEUE_BACKEND="database")
     def test_fake_runner_failure_marks_job_failed_and_keeps_log(self):
         with self._artifact_root() as artifact_dir:
-            with override_settings(ARTIFACT_STORAGE_ROOT=artifact_dir):
+            with override_settings(
+                ARTIFACT_STORAGE_ROOT=artifact_dir,
+                PLOT_RUNNER_ROOT=Path(artifact_dir) / "plot-runner",
+            ):
                 user = self._approved_user("runner-fail")
                 queue_client = DatabaseQueueClient()
                 job = create_queued_job(
@@ -97,7 +114,10 @@ class RunnerTests(TestCase):
     @override_settings(QUEUE_BACKEND="database")
     def test_local_job_runner_consumes_queue_and_deletes_message(self):
         with self._artifact_root() as artifact_dir:
-            with override_settings(ARTIFACT_STORAGE_ROOT=artifact_dir):
+            with override_settings(
+                ARTIFACT_STORAGE_ROOT=artifact_dir,
+                PLOT_RUNNER_ROOT=Path(artifact_dir) / "plot-runner",
+            ):
                 user = self._approved_user("runner-loop")
                 queue_client = DatabaseQueueClient()
                 job = create_queued_job(
@@ -151,7 +171,10 @@ class RunnerTests(TestCase):
     @override_settings(QUEUE_BACKEND="database")
     def test_local_job_runner_discards_terminal_job_messages(self):
         with self._artifact_root() as artifact_dir:
-            with override_settings(ARTIFACT_STORAGE_ROOT=artifact_dir):
+            with override_settings(
+                ARTIFACT_STORAGE_ROOT=artifact_dir,
+                PLOT_RUNNER_ROOT=Path(artifact_dir) / "plot-runner",
+            ):
                 user = self._approved_user("runner-terminal")
                 queue_client = DatabaseQueueClient()
                 job = create_queued_job(
@@ -172,7 +195,10 @@ class RunnerTests(TestCase):
     @override_settings(QUEUE_BACKEND="database")
     def test_local_job_runner_retries_after_runner_failure(self):
         with self._artifact_root() as artifact_dir:
-            with override_settings(ARTIFACT_STORAGE_ROOT=artifact_dir):
+            with override_settings(
+                ARTIFACT_STORAGE_ROOT=artifact_dir,
+                PLOT_RUNNER_ROOT=Path(artifact_dir) / "plot-runner",
+            ):
                 user = self._approved_user("runner-retry")
                 queue_client = DatabaseQueueClient()
                 job = create_queued_job(
@@ -199,3 +225,45 @@ class RunnerTests(TestCase):
                 self.assertEqual(job.status, JobStatus.COMPLETED)
                 self.assertEqual(job.retry_count, 1)
                 self.assertEqual(QueueMessageRecord.objects.count(), 0)
+
+    @override_settings(QUEUE_BACKEND="database")
+    def test_plot_runner_command_reports_workdir_paths(self):
+        with self._artifact_root() as artifact_dir:
+            with override_settings(
+                ARTIFACT_STORAGE_ROOT=artifact_dir,
+                PLOT_RUNNER_ROOT=Path(artifact_dir) / "plot-runner",
+            ):
+                user = self._approved_user("runner-command")
+                queue_client = DatabaseQueueClient()
+                job = create_queued_job(
+                    owner=user,
+                    original_prompt="Make a plot",
+                    backend_profile="rdf",
+                    queue_client=queue_client,
+                ).job
+
+                result = RunnerResult(
+                    job=job,
+                    artifact_refs=(),
+                    work_dir=Path(artifact_dir) / "plot-runner" / str(job.submission_id),
+                    prompt_path=Path(artifact_dir) / "prompt.txt",
+                    context_path=Path(artifact_dir) / "context.json",
+                )
+                with mock.patch(
+                    "portal.management.commands.plot_runner.run_fake_plot_job",
+                    return_value=result,
+                ):
+                    from io import StringIO
+
+                    output = StringIO()
+                    call_command(
+                        "plot_runner",
+                        job_id=str(job.submission_id),
+                        stdout=output,
+                        verbosity=0,
+                    )
+
+                self.assertIn("Processed", output.getvalue())
+                self.assertIn("Work dir:", output.getvalue())
+                self.assertIn("Prompt:", output.getvalue())
+                self.assertIn("Context:", output.getvalue())

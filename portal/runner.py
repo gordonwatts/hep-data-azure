@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import tempfile
-from dataclasses import dataclass
+import json
+import shutil
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from time import monotonic
 
@@ -16,6 +17,113 @@ from portal.services import claim_job, mark_completed, mark_failed
 class RunnerResult:
     job: Job
     artifact_refs: tuple[ArtifactRef, ...]
+    work_dir: Path
+    prompt_path: Path
+    context_path: Path
+
+
+@dataclass(frozen=True, slots=True)
+class PlotRunnerContext:
+    job_id: str
+    submission_id: str
+    original_prompt: str
+    backend_profile: str
+    resolved_dataset: str
+    database_url: str
+    artifact_storage_backend: str
+    blob_container: str
+    queue_backend: str
+    queue_name: str
+    queue_visibility_timeout_seconds: int
+    plot_runner_timeout_seconds: int
+    servicex_config_path: str
+    servicex_config_present: bool
+    openai_api_key_present: bool
+    github_client_id_present: bool
+    github_client_secret_present: bool
+    key_vault_url: str
+    key_vault_name: str
+
+
+def build_codex_prompt(job: Job) -> str:
+    return (
+        "$iris-hep Please write a stand-alone python file that we can use uv to run "
+        "(and auto install) that will do the following. It should produce a plot and "
+        f"a file comments.md with comments as output: {job.original_prompt}"
+    )
+
+
+def _runner_root() -> Path:
+    root = Path(settings.PLOT_RUNNER_ROOT)
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def prepare_runner_work_dir(job_id: str) -> Path:
+    work_dir = _runner_root() / job_id
+    if work_dir.exists():
+        shutil.rmtree(work_dir)
+    work_dir.mkdir(parents=True, exist_ok=True)
+    return work_dir
+
+
+def build_plot_runner_context(job: Job) -> PlotRunnerContext:
+    database_url = getattr(settings, "DATABASE_URL", None) or ""
+    servicex_path = Path(settings.SERVICEX_CONFIG_PATH)
+    return PlotRunnerContext(
+        job_id=str(job.submission_id),
+        submission_id=str(job.submission_id),
+        original_prompt=job.original_prompt,
+        backend_profile=job.backend_profile,
+        resolved_dataset=job.resolved_dataset,
+        database_url=database_url,
+        artifact_storage_backend=settings.ARTIFACT_STORAGE_BACKEND,
+        blob_container=settings.BLOB_CONTAINER_NAME,
+        queue_backend=settings.QUEUE_BACKEND,
+        queue_name=settings.QUEUE_NAME,
+        queue_visibility_timeout_seconds=settings.QUEUE_VISIBILITY_TIMEOUT_SECONDS,
+        plot_runner_timeout_seconds=settings.PLOT_RUNNER_TIMEOUT_SECONDS,
+        servicex_config_path=str(servicex_path),
+        servicex_config_present=servicex_path.exists(),
+        openai_api_key_present=bool(settings.OPENAI_API_KEY),
+        github_client_id_present=bool(settings.GITHUB_CLIENT_ID),
+        github_client_secret_present=bool(settings.GITHUB_CLIENT_SECRET),
+        key_vault_url=settings.KEY_VAULT_URL or "",
+        key_vault_name=settings.KEY_VAULT_NAME or "",
+    )
+
+
+def _write_runner_inputs(
+    work_dir: Path,
+    job: Job,
+    context: PlotRunnerContext,
+) -> tuple[Path, Path]:
+    prompt_path = work_dir / "prompt.txt"
+    context_path = work_dir / "context.json"
+    job_path = work_dir / "job.json"
+    secrets_dir = work_dir / "secrets"
+    prompt_path.write_text(build_codex_prompt(job), encoding="utf-8")
+    context_path.write_text(
+        json.dumps(asdict(context), indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    job_path.write_text(
+        json.dumps(
+            {
+                "backend_profile": job.backend_profile,
+                "job_id": str(job.submission_id),
+                "original_prompt": job.original_prompt,
+                "resolved_dataset": job.resolved_dataset,
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    if context.servicex_config_present:
+        secrets_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(context.servicex_config_path, secrets_dir / "servicex.yaml")
+    return prompt_path, context_path
 
 
 def _artifact_store():
@@ -84,91 +192,120 @@ def run_fake_plot_job(job_id: str, *, fail: bool = False) -> RunnerResult:
     job = claim_job(job_id)
     started = monotonic()
     refs: list[ArtifactRef] = []
+    work_dir = prepare_runner_work_dir(str(job.submission_id))
+    context = build_plot_runner_context(job)
+    prompt_path, context_path = _write_runner_inputs(work_dir, job, context)
 
     try:
-        with tempfile.TemporaryDirectory(dir=_runner_root()) as temp_dir:
-            work_dir = Path(temp_dir)
-            script_path = work_dir / "generated.py"
-            comments_path = work_dir / "comments.md"
-            plot_path = work_dir / "plot.svg"
-            log_path = work_dir / "run.log"
+        script_path = work_dir / "generated.py"
+        comments_path = work_dir / "comments.md"
+        plot_path = work_dir / "plot.svg"
+        log_path = work_dir / "run.log"
 
-            _write_text(script_path, _fake_generated_script(job))
-            _write_text(comments_path, _fake_comments(job))
-            _write_text(log_path, f"runner started for {job.submission_id}\n")
+        _write_text(script_path, _fake_generated_script(job))
+        _write_text(comments_path, _fake_comments(job))
+        _write_text(log_path, f"runner started for {job.submission_id}\n")
 
-            if fail:
-                _write_text(log_path, log_path.read_text(encoding="utf-8") + "simulated failure\n")
-                script_ref = _artifact_store().put_artifact(
+        if fail:
+            _write_text(log_path, log_path.read_text(encoding="utf-8") + "simulated failure\n")
+            refs.append(
+                _artifact_store().put_artifact(
                     job_id=str(job.submission_id),
                     local_path=script_path,
                     artifact_kind=ArtifactKind.SCRIPT,
                     content_type="text/x-python",
                     is_canonical=True,
                 )
-                refs.append(script_ref)
-                refs.append(
-                    _artifact_store().put_artifact(
-                        job_id=str(job.submission_id),
-                        local_path=log_path,
-                        artifact_kind=ArtifactKind.LOG,
-                        content_type="text/plain",
-                        is_canonical=True,
-                    )
+            )
+            refs.append(
+                _artifact_store().put_artifact(
+                    job_id=str(job.submission_id),
+                    local_path=comments_path,
+                    artifact_kind=ArtifactKind.REPORT,
+                    content_type="text/markdown",
+                    is_canonical=True,
                 )
-                for ref in refs:
-                    _record_artifact(job, ref)
-                job = mark_failed(job, failure_message="Simulated plot runner failure")
-                return RunnerResult(job=job, artifact_refs=tuple(refs))
-
-            _write_text(plot_path, _fake_svg(job))
-            _write_text(log_path, log_path.read_text(encoding="utf-8") + "simulated success\n")
-
-            refs.extend(
-                [
-                    _artifact_store().put_artifact(
-                        job_id=str(job.submission_id),
-                        local_path=script_path,
-                        artifact_kind=ArtifactKind.SCRIPT,
-                        content_type="text/x-python",
-                        is_canonical=True,
-                    ),
-                    _artifact_store().put_artifact(
-                        job_id=str(job.submission_id),
-                        local_path=comments_path,
-                        artifact_kind=ArtifactKind.REPORT,
-                        content_type="text/markdown",
-                        is_canonical=True,
-                    ),
-                    _artifact_store().put_artifact(
-                        job_id=str(job.submission_id),
-                        local_path=plot_path,
-                        artifact_kind=ArtifactKind.PLOT,
-                        content_type="image/svg+xml",
-                        is_canonical=True,
-                    ),
-                    _artifact_store().put_artifact(
-                        job_id=str(job.submission_id),
-                        local_path=log_path,
-                        artifact_kind=ArtifactKind.LOG,
-                        content_type="text/plain",
-                        is_canonical=True,
-                    ),
-                ]
+            )
+            refs.append(
+                _artifact_store().put_artifact(
+                    job_id=str(job.submission_id),
+                    local_path=log_path,
+                    artifact_kind=ArtifactKind.LOG,
+                    content_type="text/plain",
+                    is_canonical=True,
+                )
             )
             for ref in refs:
                 _record_artifact(job, ref)
-
-            elapsed = monotonic() - started
-            job = mark_completed(
-                job,
-                result_metadata={
-                    "artifacts": [ref.blob_key for ref in refs],
-                    "runtime_seconds": round(elapsed, 3),
-                },
+            job = mark_failed(job, failure_message="Simulated plot runner failure")
+            return RunnerResult(
+                job=job,
+                artifact_refs=tuple(refs),
+                work_dir=work_dir,
+                prompt_path=prompt_path,
+                context_path=context_path,
             )
-            Job.objects.filter(pk=job.pk).update(runtime_seconds=elapsed)
-            return RunnerResult(job=job, artifact_refs=tuple(refs))
+
+        _write_text(plot_path, _fake_svg(job))
+        _write_text(log_path, log_path.read_text(encoding="utf-8") + "simulated success\n")
+
+        refs.extend(
+            [
+                _artifact_store().put_artifact(
+                    job_id=str(job.submission_id),
+                    local_path=script_path,
+                    artifact_kind=ArtifactKind.SCRIPT,
+                    content_type="text/x-python",
+                    is_canonical=True,
+                ),
+                _artifact_store().put_artifact(
+                    job_id=str(job.submission_id),
+                    local_path=comments_path,
+                    artifact_kind=ArtifactKind.REPORT,
+                    content_type="text/markdown",
+                    is_canonical=True,
+                ),
+                _artifact_store().put_artifact(
+                    job_id=str(job.submission_id),
+                    local_path=plot_path,
+                    artifact_kind=ArtifactKind.PLOT,
+                    content_type="image/svg+xml",
+                    is_canonical=True,
+                ),
+                _artifact_store().put_artifact(
+                    job_id=str(job.submission_id),
+                    local_path=log_path,
+                    artifact_kind=ArtifactKind.LOG,
+                    content_type="text/plain",
+                    is_canonical=True,
+                ),
+            ]
+        )
+        for ref in refs:
+            _record_artifact(job, ref)
+
+        elapsed = monotonic() - started
+        job = mark_completed(
+            job,
+            result_metadata={
+                "artifacts": [ref.blob_key for ref in refs],
+                "runtime_seconds": round(elapsed, 3),
+            },
+        )
+        Job.objects.filter(pk=job.pk).update(runtime_seconds=elapsed)
+        return RunnerResult(
+            job=job,
+            artifact_refs=tuple(refs),
+            work_dir=work_dir,
+            prompt_path=prompt_path,
+            context_path=context_path,
+        )
     except Exception as exc:
         job = mark_failed(job, failure_message=f"Runner crashed: {exc}")
-        return RunnerResult(job=job, artifact_refs=tuple(refs))
+        return RunnerResult(
+            job=job,
+            artifact_refs=tuple(refs),
+            work_dir=work_dir,
+            prompt_path=prompt_path,
+            context_path=context_path,
+        )

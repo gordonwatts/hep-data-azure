@@ -166,7 +166,11 @@ class ViewTests(TestCase):
         profile.save(update_fields=["approval_state"])
 
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as artifact_dir:
-            with override_settings(ARTIFACT_STORAGE_ROOT=artifact_dir, QUEUE_BACKEND="database"):
+            with override_settings(
+                ARTIFACT_STORAGE_ROOT=artifact_dir,
+                PLOT_RUNNER_ROOT=Path(artifact_dir) / "plot-runner",
+                QUEUE_BACKEND="database",
+            ):
                 queue_client = DatabaseQueueClient()
                 job = create_queued_job(
                     owner=user,

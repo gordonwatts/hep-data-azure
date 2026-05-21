@@ -16,6 +16,7 @@ def test_base_settings_defaults(monkeypatch):
         "JOB_POLL_INTERVAL_SECONDS",
         "LOCAL_JOB_RUNNER_POLL_INTERVAL_SECONDS",
         "PLOT_RUNNER_TIMEOUT_SECONDS",
+        "PLOT_RUNNER_ROOT",
         "JOB_RETRY_LIMIT",
         "SECRET_SOURCE",
         "SERVICEX_CONFIG_PATH",
@@ -32,6 +33,7 @@ def test_base_settings_defaults(monkeypatch):
     assert settings.JOB_POLL_INTERVAL_MILLISECONDS == 2000
     assert settings.LOCAL_JOB_RUNNER_POLL_INTERVAL_SECONDS == 1.0
     assert settings.PLOT_RUNNER_TIMEOUT_SECONDS == 600
+    assert Path(settings.PLOT_RUNNER_ROOT).as_posix().endswith("tmp/plot-runner")
     assert settings.JOB_RETRY_LIMIT == 3
     assert settings.SECRET_SOURCE == "env"
     assert Path(settings.SERVICEX_CONFIG_PATH).as_posix().endswith(

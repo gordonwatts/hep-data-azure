@@ -230,9 +230,9 @@ Connection to watch: use fakes for fast unit tests and Azurite/Postgres for inte
 ### 15. Real Plot Runner Contract
 
 - [ ] Implement the real plot-runner command with `plot-runner run --job-id <uuid>`.
-- [ ] Load job prompt, backend profile, dataset, database, storage, and secret config from services/settings.
-- [ ] Create an isolated working directory per job.
-- [ ] Build the Codex prompt exactly from the spec pattern: `$iris-hep Please write a stand-alone python file that we can use uv to run (and auto install) that will do the following. It should produce a plot and a file comments.md with comments as output: <plot-question>`.
+- [x] Load job prompt, backend profile, dataset, database, storage, and secret config from services/settings.
+- [x] Create an isolated working directory per job.
+- [x] Build the Codex prompt exactly from the spec pattern: `$iris-hep Please write a stand-alone python file that we can use uv to run (and auto install) that will do the following. It should produce a plot and a file comments.md with comments as output: <plot-question>`.
 - [ ] Install or include the `iris-hep/marketplace` skills in the plot-runner image.
 - [ ] Define the real plot-runner Dockerfile in this repo, including Codex installation/configuration plus the analysis dependencies needed for ROOT/Python/ServiceX workflows.
 - [ ] Run Codex with an OpenAI API key supplied at runtime, not baked into the image.

@@ -26,3 +26,6 @@ class Command(BaseCommand):
                 f"Processed {result.job.submission_id} -> {result.job.status}"
             )
         )
+        self.stdout.write(f"Work dir: {result.work_dir}")
+        self.stdout.write(f"Prompt: {result.prompt_path}")
+        self.stdout.write(f"Context: {result.context_path}")

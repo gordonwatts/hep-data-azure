@@ -46,6 +46,9 @@ service:
 docker compose run --rm plot-runner plot_runner --job-id <uuid>
 ```
 
+That command writes a per-job workdir under `tmp/plot-runner/<job_id>` with the
+prompt, runner context, and generated files for inspection.
+
 ## Demo credentials
 
 - Admin: `admin` / `admin123`

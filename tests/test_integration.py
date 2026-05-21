@@ -27,7 +27,10 @@ class IntegrationSmokeTests(TestCase):
     @override_settings(QUEUE_BACKEND="database")
     def test_submit_runner_and_generated_code_flow(self):
         with self._artifact_root() as artifact_dir:
-            with override_settings(ARTIFACT_STORAGE_ROOT=artifact_dir):
+            with override_settings(
+                ARTIFACT_STORAGE_ROOT=artifact_dir,
+                PLOT_RUNNER_ROOT=Path(artifact_dir) / "plot-runner",
+            ):
                 user = self._approved_user("integration")
                 self.client.force_login(user)
 
