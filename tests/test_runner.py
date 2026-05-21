@@ -1,0 +1,201 @@
+from __future__ import annotations
+
+import tempfile
+from pathlib import Path
+from unittest import mock
+
+from django.contrib.auth import get_user_model
+from django.core.management import call_command
+from django.test import TestCase, override_settings
+
+from portal.models import ApprovalState, ArtifactKind, JobStatus, QueueMessageRecord
+from portal.queue import DatabaseQueueClient, QueueMessage, QueuePayload
+from portal.runner import run_fake_plot_job
+from portal.services import create_queued_job
+
+
+class RunnerTests(TestCase):
+    def setUp(self):
+        self.User = get_user_model()
+
+    def _approved_user(self, username: str):
+        user = self.User.objects.create_user(username=username, password="secret")
+        profile = user.profile
+        profile.approval_state = ApprovalState.APPROVED
+        profile.save(update_fields=["approval_state"])
+        return user
+
+    def _artifact_root(self):
+        return tempfile.TemporaryDirectory(dir=Path.cwd())
+
+    def _queue_message(
+        self,
+        message_id: str,
+        *,
+        body: str | None = None,
+        job_id: str = "job-id",
+        backend_profile: str = "rdf",
+    ) -> QueueMessage:
+        payload = QueuePayload(job_id=job_id, backend_profile=backend_profile)
+        return QueueMessage(
+            message_id=message_id,
+            pop_receipt="receipt",
+            body=body or payload.to_body(),
+            payload=payload,
+            dequeue_count=1,
+        )
+
+    @override_settings(QUEUE_BACKEND="database")
+    def test_fake_runner_success_creates_artifacts_and_code_endpoint(self):
+        with self._artifact_root() as artifact_dir:
+            with override_settings(ARTIFACT_STORAGE_ROOT=artifact_dir):
+                user = self._approved_user("runner-success")
+                queue_client = DatabaseQueueClient()
+                job = create_queued_job(
+                    owner=user,
+                    original_prompt="Make a plot of the sample",
+                    backend_profile="rdf",
+                    queue_client=queue_client,
+                ).job
+
+                result = run_fake_plot_job(str(job.submission_id))
+                result.job.refresh_from_db()
+
+                self.assertEqual(result.job.status, JobStatus.COMPLETED)
+                self.assertGreaterEqual(result.job.artifacts.count(), 4)
+                self.assertTrue(result.job.artifacts.filter(artifact_kind=ArtifactKind.SCRIPT).exists())
+
+                self.client.force_login(user)
+                code_response = self.client.get(
+                    f"/jobs/{job.submission_id}/generated-code/",
+                )
+                self.assertIn(
+                    "print(&#x27;hello from the fake plot runner&#x27;)",
+                    code_response.content.decode("utf-8"),
+                )
+
+    @override_settings(QUEUE_BACKEND="database")
+    def test_fake_runner_failure_marks_job_failed_and_keeps_log(self):
+        with self._artifact_root() as artifact_dir:
+            with override_settings(ARTIFACT_STORAGE_ROOT=artifact_dir):
+                user = self._approved_user("runner-fail")
+                queue_client = DatabaseQueueClient()
+                job = create_queued_job(
+                    owner=user,
+                    original_prompt="Make a plot",
+                    backend_profile="rdf",
+                    queue_client=queue_client,
+                ).job
+
+                result = run_fake_plot_job(str(job.submission_id), fail=True)
+                result.job.refresh_from_db()
+
+                self.assertEqual(result.job.status, JobStatus.FAILED)
+                self.assertIn("Simulated plot runner failure", result.job.failure_message)
+                self.assertTrue(result.job.artifacts.filter(artifact_kind=ArtifactKind.LOG).exists())
+
+    @override_settings(QUEUE_BACKEND="database")
+    def test_local_job_runner_consumes_queue_and_deletes_message(self):
+        with self._artifact_root() as artifact_dir:
+            with override_settings(ARTIFACT_STORAGE_ROOT=artifact_dir):
+                user = self._approved_user("runner-loop")
+                queue_client = DatabaseQueueClient()
+                job = create_queued_job(
+                    owner=user,
+                    original_prompt="Make a plot",
+                    backend_profile="rdf",
+                    queue_client=queue_client,
+                ).job
+
+                call_command("run_local_job_runner", once=True, poll_interval=0, verbosity=0)
+
+                job.refresh_from_db()
+                self.assertEqual(job.status, JobStatus.COMPLETED)
+                self.assertEqual(QueueMessageRecord.objects.count(), 0)
+                self.assertGreaterEqual(job.artifacts.count(), 4)
+
+    @override_settings(QUEUE_BACKEND="database")
+    def test_local_job_runner_discards_invalid_payload(self):
+        class StubQueueClient:
+            def __init__(self, messages):
+                self.messages = list(messages)
+                self.deleted = []
+                self.abandoned = []
+
+            def receive_messages(self, max_messages=1, visibility_timeout_seconds=30):
+                if not self.messages:
+                    return []
+                return [self.messages.pop(0)]
+
+            def delete_message(self, message):
+                self.deleted.append(message)
+
+            def abandon_message(self, message):
+                self.abandoned.append(message)
+
+        invalid_message = self._queue_message(
+            "invalid-message",
+            body="{not-json",
+        )
+        queue_client = StubQueueClient([invalid_message])
+
+        with mock.patch(
+            "portal.management.commands.run_local_job_runner.get_queue_client",
+            return_value=queue_client,
+        ):
+            call_command("run_local_job_runner", once=True, poll_interval=0, verbosity=0)
+
+        self.assertEqual(queue_client.deleted, [invalid_message])
+        self.assertEqual(queue_client.abandoned, [])
+
+    @override_settings(QUEUE_BACKEND="database")
+    def test_local_job_runner_discards_terminal_job_messages(self):
+        with self._artifact_root() as artifact_dir:
+            with override_settings(ARTIFACT_STORAGE_ROOT=artifact_dir):
+                user = self._approved_user("runner-terminal")
+                queue_client = DatabaseQueueClient()
+                job = create_queued_job(
+                    owner=user,
+                    original_prompt="Make a plot",
+                    backend_profile="rdf",
+                    queue_client=queue_client,
+                ).job
+                job.status = JobStatus.COMPLETED
+                job.save(update_fields=["status"])
+
+                call_command("run_local_job_runner", once=True, poll_interval=0, verbosity=0)
+
+                job.refresh_from_db()
+                self.assertEqual(job.status, JobStatus.COMPLETED)
+                self.assertEqual(QueueMessageRecord.objects.count(), 0)
+
+    @override_settings(QUEUE_BACKEND="database")
+    def test_local_job_runner_retries_after_runner_failure(self):
+        with self._artifact_root() as artifact_dir:
+            with override_settings(ARTIFACT_STORAGE_ROOT=artifact_dir):
+                user = self._approved_user("runner-retry")
+                queue_client = DatabaseQueueClient()
+                job = create_queued_job(
+                    owner=user,
+                    original_prompt="Make a plot",
+                    backend_profile="rdf",
+                    queue_client=queue_client,
+                ).job
+
+                with mock.patch(
+                    "portal.management.commands.run_local_job_runner.run_fake_plot_job",
+                    side_effect=RuntimeError("boom"),
+                ):
+                    call_command("run_local_job_runner", once=True, poll_interval=0, verbosity=0)
+
+                job.refresh_from_db()
+                self.assertEqual(job.status, JobStatus.QUEUED)
+                self.assertEqual(job.retry_count, 1)
+                self.assertEqual(QueueMessageRecord.objects.count(), 1)
+
+                call_command("run_local_job_runner", once=True, poll_interval=0, verbosity=0)
+
+                job.refresh_from_db()
+                self.assertEqual(job.status, JobStatus.COMPLETED)
+                self.assertEqual(job.retry_count, 1)
+                self.assertEqual(QueueMessageRecord.objects.count(), 0)

@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class UserRole(models.TextChoices):
@@ -148,3 +149,32 @@ class JobArtifact(models.Model):
 
     def __str__(self) -> str:
         return f"{self.job.submission_id} [{self.artifact_kind}]"
+
+
+def _queue_message_id() -> str:
+    return uuid4().hex
+
+
+class QueueMessageRecord(models.Model):
+    message_id = models.CharField(
+        max_length=32,
+        unique=True,
+        default=_queue_message_id,
+        editable=False,
+    )
+    job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name="queue_messages")
+    backend_profile = models.CharField(max_length=64)
+    body = models.TextField()
+    dequeue_count = models.PositiveIntegerField(default=0)
+    pop_receipt = models.CharField(max_length=64, blank=True, default="")
+    visible_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["visible_at", "created_at"], name="queue_visible_created_idx"),
+            models.Index(fields=["job"], name="queue_job_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.message_id} ({self.job.submission_id})"

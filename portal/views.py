@@ -14,15 +14,13 @@ from portal.auth import approval_required, ensure_user_profile, is_user_approved
 from portal.backend import default_backend_profile, load_example_prompts
 from portal.forms import ApprovalDecisionForm, JobSubmissionForm
 from portal.models import ApprovalState, ArtifactKind, Job, JobArtifact, UserProfile
-from portal.queue import InMemoryQueueClient
+from portal.queue import get_queue_client
 from portal.services import (
     QueueEnqueueError,
     create_queued_job,
     list_jobs_for_user,
     mark_cancelled,
 )
-
-QUEUE_CLIENT = InMemoryQueueClient()
 
 
 def can_access_job(user, job: Job) -> bool:
@@ -85,7 +83,7 @@ def submit_job(request: HttpRequest) -> HttpResponse:
             original_prompt=form.cleaned_data["original_prompt"],
             backend_profile=form.cleaned_data["backend_profile"],
             resolved_dataset=form.cleaned_data["resolved_dataset"] or None,
-            queue_client=QUEUE_CLIENT,
+            queue_client=get_queue_client(),
         )
     except QueueEnqueueError as exc:
         messages.error(request, str(exc))
@@ -137,7 +135,25 @@ def job_generated_code(request: HttpRequest, submission_id: str) -> HttpResponse
     job = get_object_or_404(Job, submission_id=submission_id)
     if not can_access_job(request.user, job):
         return HttpResponseForbidden("You do not have access to this job.")
-    return render(request, "portal/_generated_code.html", {"job": job})
+    script_artifact = (
+        job.artifacts.filter(artifact_kind=ArtifactKind.SCRIPT)
+        .order_by("-created_at", "-id")
+        .first()
+    )
+    generated_code = None
+    if script_artifact:
+        artifact_root = Path(settings.ARTIFACT_STORAGE_ROOT)
+        local_path = artifact_root / script_artifact.blob_container / script_artifact.blob_key
+        if local_path.exists():
+            generated_code = local_path.read_text(encoding="utf-8")
+    return render(
+        request,
+        "portal/_generated_code.html",
+        {
+            "generated_code": generated_code,
+            "job": job,
+        },
+    )
 
 
 @approval_required
@@ -154,7 +170,7 @@ def clone_job(request: HttpRequest, submission_id: str) -> HttpResponse:
                 original_prompt=form.cleaned_data["original_prompt"],
                 backend_profile=form.cleaned_data["backend_profile"],
                 resolved_dataset=form.cleaned_data["resolved_dataset"] or None,
-                queue_client=QUEUE_CLIENT,
+                queue_client=get_queue_client(),
             )
             return redirect("job-detail", submission_id=result.job.submission_id)
     else:

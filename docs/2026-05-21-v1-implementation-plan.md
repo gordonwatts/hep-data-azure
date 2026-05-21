@@ -187,21 +187,21 @@ Connection to watch: artifact routes should keep the previous URL semantics even
 
 ### 11. Fake Plot Runner Milestone
 
-- [ ] Add `plot-runner run --job-id <uuid>` command entry point or management command wrapper using the same service boundaries planned for the real runner.
-- [ ] Implement a fake executor mode that marks the job running, writes a tiny plot placeholder, `comments.md`, generated script, and log artifact, then marks completed.
-- [ ] Implement fake failure mode for testing that marks failed with a clear failure message and log artifact.
-- [ ] Ensure the runner refuses missing, terminal, cancelled, or already-running jobs safely.
-- [ ] Verification: integration tests for fake success, fake failure, duplicate message handling, artifact records, script artifact creation, asynchronous source-code loading, and terminal status updates.
+- [x] Add `plot-runner run --job-id <uuid>` command entry point or management command wrapper using the same service boundaries planned for the real runner.
+- [x] Implement a fake executor mode that marks the job running, writes a tiny plot placeholder, `comments.md`, generated script, and log artifact, then marks completed.
+- [x] Implement fake failure mode for testing that marks failed with a clear failure message and log artifact.
+- [x] Ensure the runner refuses missing, terminal, cancelled, or already-running jobs safely.
+- [x] Verification: integration tests for fake success, fake failure, duplicate message handling, artifact records, script artifact creation, asynchronous source-code loading, and terminal status updates.
 
 Connection to watch: this is not throwaway if structured correctly. The fake executor should exercise the same `JobStore`, `ArtifactStore`, and `SecretProvider` seams as the real runner.
 
 ### 12. Local Job Runner Process
 
-- [ ] Add `run_local_job_runner` command that polls one queue message at a time.
-- [ ] For each message, validate payload, skip/discard missing or terminal jobs, invoke the plot-runner command/container, and delete the message only after durable terminal state is known.
-- [ ] Abandon or leave messages visible again when processing fails before durable state is known.
-- [ ] Respect poll interval, max messages of 1, visibility timeout, retry count, and stop-after-one options for tests.
-- [ ] Verification: tests for successful consume/delete, missing job discard, terminal job discard, runner failure retry, invalid payload handling, and single-message processing.
+- [x] Add `run_local_job_runner` command that polls one queue message at a time.
+- [x] For each message, validate payload, skip/discard missing or terminal jobs, invoke the plot-runner command/container, and delete the message only after durable terminal state is known.
+- [x] Abandon or leave messages visible again when processing fails before durable state is known.
+- [x] Respect poll interval, max messages of 1, visibility timeout, retry count, and stop-after-one options for tests.
+- [x] Verification: tests for successful consume/delete, missing job discard, terminal job discard, runner failure retry, invalid payload handling, and single-message processing.
 
 Connection to watch: the local runner simulates the production trigger path. It should not become a second implementation of plot execution business logic.
 

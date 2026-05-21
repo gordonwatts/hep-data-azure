@@ -6,6 +6,12 @@ from datetime import UTC, datetime, timedelta
 from typing import Protocol
 from uuid import uuid4
 
+from django.conf import settings
+from django.db import transaction
+from django.utils import timezone
+
+from portal.models import Job, QueueMessageRecord
+
 
 @dataclass(frozen=True, slots=True)
 class QueuePayload:
@@ -163,3 +169,72 @@ class InMemoryQueueClient:
                 )
             )
         return tuple(messages)
+
+
+class DatabaseQueueClient:
+    def enqueue_job(self, job_id: str, backend_profile: str) -> str:
+        payload = QueuePayload(job_id=job_id, backend_profile=backend_profile)
+        job = Job.objects.get(submission_id=job_id)
+        record = QueueMessageRecord.objects.create(
+            job=job,
+            backend_profile=backend_profile,
+            body=payload.to_body(),
+        )
+        return record.message_id
+
+    def receive_messages(
+        self,
+        max_messages: int = 1,
+        visibility_timeout_seconds: int = 30,
+    ) -> list[QueueMessage]:
+        if max_messages < 1:
+            return []
+
+        now = timezone.now()
+        received: list[QueueMessage] = []
+        with transaction.atomic():
+            candidates = list(
+                QueueMessageRecord.objects.select_for_update()
+                .filter(visible_at__lte=now)
+                .order_by("created_at", "id")[:max_messages]
+            )
+            for record in candidates:
+                record.dequeue_count += 1
+                record.pop_receipt = uuid4().hex
+                record.visible_at = now + timedelta(seconds=visibility_timeout_seconds)
+                record.save(
+                    update_fields=["dequeue_count", "pop_receipt", "visible_at"]
+                )
+                payload = QueuePayload.from_body(record.body)
+                received.append(
+                    QueueMessage(
+                        message_id=record.message_id,
+                        pop_receipt=record.pop_receipt,
+                        body=record.body,
+                        payload=payload,
+                        dequeue_count=record.dequeue_count,
+                    )
+                )
+        return received
+
+    def delete_message(self, message: QueueMessage) -> None:
+        deleted, _ = QueueMessageRecord.objects.filter(
+            message_id=message.message_id,
+            pop_receipt=message.pop_receipt,
+        ).delete()
+        if deleted == 0:
+            raise KeyError("Queue message not found or receipt expired")
+
+    def abandon_message(self, message: QueueMessage) -> None:
+        updated = QueueMessageRecord.objects.filter(
+            message_id=message.message_id,
+            pop_receipt=message.pop_receipt,
+        ).update(visible_at=timezone.now())
+        if updated == 0:
+            raise KeyError("Queue message not found or receipt expired")
+
+
+def get_queue_client() -> QueueClient:
+    if getattr(settings, "QUEUE_BACKEND", "database") == "memory":
+        return InMemoryQueueClient()
+    return DatabaseQueueClient()
