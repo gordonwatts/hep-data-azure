@@ -1,0 +1,10 @@
+[
+  {
+    "label": "Make a histogram",
+    "prompt": "Make a histogram of the leading lepton pT."
+  },
+  {
+    "label": "Compare samples",
+    "prompt": "Compare signal and background yields across all bins."
+  }
+]

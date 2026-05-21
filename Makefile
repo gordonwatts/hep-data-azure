@@ -1,0 +1,26 @@
+UV ?= uv
+PYTHON ?= python
+
+.PHONY: install check test lint format runserver migrate
+
+install:
+	$(UV) sync --extra dev
+
+check:
+	$(UV) run $(PYTHON) manage.py check
+
+test:
+	$(UV) run pytest
+
+lint:
+	$(UV) run ruff check .
+
+format:
+	$(UV) run ruff format .
+
+runserver:
+	$(UV) run $(PYTHON) manage.py runserver
+
+migrate:
+	$(UV) run $(PYTHON) manage.py migrate
+

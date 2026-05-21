@@ -74,45 +74,45 @@ Use environment variables for settings and paths. Expected groups:
 
 ### 1. Repository Foundation
 
-- [ ] Create the Django project skeleton with app modules matching the previous app shape: project package, `portal` app, settings split, URLs, templates directory, static directory, and `manage.py`.
-- [ ] Add Python packaging and tooling files with explicit dev commands for tests, linting, formatting, and Django management commands.
-- [ ] Add a minimal README that explains local setup, required secret files, and the intended `docker compose up` workflow.
-- [ ] Add `.gitignore` entries for virtualenvs, local databases, `.env`, secret files, generated artifacts, test caches, and coverage output.
-- [ ] Add baseline CI that installs dependencies and runs the fastest reliable test command.
-- [ ] Verification: run the empty Django smoke test or `manage.py check` plus the configured test command.
+- [x] Create the Django project skeleton with app modules matching the previous app shape: project package, `portal` app, settings split, URLs, templates directory, static directory, and `manage.py`.
+- [x] Add Python packaging and tooling files with explicit dev commands for tests, linting, formatting, and Django management commands.
+- [x] Add a minimal README that explains local setup, required secret files, and the intended `docker compose up` workflow.
+- [x] Add `.gitignore` entries for virtualenvs, local databases, `.env`, secret files, generated artifacts, test caches, and coverage output.
+- [x] Add baseline CI that installs dependencies and runs the fastest reliable test command.
+- [x] Verification: run the empty Django smoke test or `manage.py check` plus the configured test command.
 
 Connection to watch: do not start by implementing runner logic inside Django views. The foundation should make room for service modules and adapters before job execution exists.
 
 ### 2. Settings And Configuration
 
-- [ ] Implement `base`, `dev`, `test`, and `prod` settings modules.
-- [ ] Configure Azure SQL/SQL Server through `DATABASE_URL` or equivalent env settings, with SQLite allowed only for narrow tests if it does not hide SQL Server compatibility behavior.
-- [ ] Add storage settings for queue/blob names, Azurite endpoints, and production Azure connection options.
-- [ ] Add polling interval settings and make the browser value seconds-based in Python but milliseconds-based in JavaScript.
-- [ ] Add secret-source settings for local files and future Key Vault use.
-- [ ] Verification: add settings tests that load test settings and assert required defaults are present without reading real secrets.
+- [x] Implement `base`, `dev`, `test`, and `prod` settings modules.
+- [x] Configure Azure SQL/SQL Server through `DATABASE_URL` or equivalent env settings, with SQLite allowed only for narrow tests if it does not hide SQL Server compatibility behavior.
+- [x] Add storage settings for queue/blob names, Azurite endpoints, and production Azure connection options.
+- [x] Add polling interval settings and make the browser value seconds-based in Python but milliseconds-based in JavaScript.
+- [x] Add secret-source settings for local files and future Key Vault use.
+- [x] Verification: add settings tests that load test settings and assert required defaults are present without reading real secrets.
 
 Connection to watch: local and production should use the same service interfaces. Avoid scattering raw environment reads through views, models, runner code, or templates.
 
 ### 3. Models And Migrations
 
-- [ ] Add `JobStatus`, `ArtifactKind`, `ApprovalState`, and user role/status concepts as explicit choices.
-- [ ] Add `UserProfile` with approval state and audit fields: approved/rejected timestamps, actor fields, and optional rejection reason.
-- [ ] Add `Job` with UUID/submission id, owner, original prompt, resolved dataset, backend profile, status, queue message id, retry count, timestamps, timeout metadata, failure message, queue position/depth fields, and JSON result metadata.
-- [ ] Add `JobArtifact` with artifact kind, blob container, blob key, content type, size, canonical flag, and timestamp.
-- [ ] Add indexes for owner/status, submission id, status timestamps, and job artifacts by job/kind.
-- [ ] Add constraints or service-enforced checks for valid terminal/running status transitions where practical.
-- [ ] Verification: model tests for defaults, string representations if used in admin/UI, artifact metadata, and migration generation.
+- [x] Add `JobStatus`, `ArtifactKind`, `ApprovalState`, and user role/status concepts as explicit choices.
+- [x] Add `UserProfile` with approval state and audit fields: approved/rejected timestamps, actor fields, and optional rejection reason.
+- [x] Add `Job` with UUID/submission id, owner, original prompt, resolved dataset, backend profile, status, queue message id, retry count, timestamps, timeout metadata, failure message, queue position/depth fields, and JSON result metadata.
+- [x] Add `JobArtifact` with artifact kind, blob container, blob key, content type, size, canonical flag, and timestamp.
+- [x] Add indexes for owner/status, submission id, status timestamps, and job artifacts by job/kind.
+- [x] Add constraints or service-enforced checks for valid terminal/running status transitions where practical.
+- [x] Verification: model tests for defaults, string representations if used in admin/UI, artifact metadata, and migration generation.
 
 Connection to watch: queue message id is metadata, not the source of truth. The job row must remain the durable state for web display and runner decisions.
 
 ### 4. Backend Profiles And Prompt Helpers
 
-- [ ] Implement backend profile definitions for `servicex_awkward` and `rdf` with labels and any existing dataset inference behavior from the previous app.
-- [ ] Implement prompt/dataset merge helpers for form submission and clone/resubmit.
-- [ ] Add example-prompt loading if examples are part of the first UI milestone.
-- [ ] Keep profile names stable because queue messages and runner behavior depend on them.
-- [ ] Verification: tests for profile listing, default profile, dataset inference, and prompt merge behavior.
+- [x] Implement backend profile definitions for `servicex_awkward` and `rdf` with labels and any existing dataset inference behavior from the previous app.
+- [x] Implement prompt/dataset merge helpers for form submission and clone/resubmit.
+- [x] Add example-prompt loading if examples are part of the first UI milestone.
+- [x] Keep profile names stable because queue messages and runner behavior depend on them.
+- [x] Verification: tests for profile listing, default profile, dataset inference, and prompt merge behavior.
 
 Connection to watch: the backend profile selected in the web form must be the same value stored on `Job`, sent in the queue message, and understood by the plot runner.
 
