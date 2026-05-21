@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Admin users{% endblock %}
+
+{% block content %}
+<h1>User approvals</h1>
+<table>
+  <thead>
+    <tr>
+      <th>User</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for profile in profiles %}
+    <tr>
+      <td>{{ profile.user.username }}</td>
+      <td>{{ profile.approval_state }}</td>
+      <td>
+        <form method="post" action="{% url 'approve-user' profile.user_id %}" style="display:inline">
+          {% csrf_token %}
+          <button type="submit">Approve</button>
+        </form>
+        <form method="post" action="{% url 'reject-user' profile.user_id %}" style="display:inline">
+          {% csrf_token %}
+          <input type="text" name="reason" placeholder="Reason">
+          <button type="submit">Reject</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

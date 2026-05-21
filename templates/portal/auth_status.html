@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}Account status{% endblock %}
+
+{% block content %}
+<h1>Account status</h1>
+<p>{{ profile.approval_state }}</p>
+{% if profile.approval_state == "pending" %}
+<p>Your account is waiting for approval.</p>
+{% elif profile.approval_state == "rejected" %}
+<p>Your account was rejected.</p>
+{% endif %}
+{% endblock %}

@@ -153,35 +153,35 @@ Connection to watch: queue delivery can repeat. `claim_job` and terminal-state c
 
 ### 8. Authentication And Approval Flow
 
-- [ ] Add GitHub OAuth integration or a development authentication stub that can later be replaced without changing approval logic.
-- [ ] Add middleware or view checks so pending/rejected users cannot submit jobs.
-- [ ] Add admin approval/rejection views with audit fields.
-- [ ] Add account status, login, and logout routes/templates.
-- [ ] Add local test helpers for approved user, pending user, rejected user, and admin.
-- [ ] Verification: tests for first sign-in pending state, approved access, rejected access, admin approve/reject, and session behavior after approval refresh.
+- [x] Add GitHub OAuth integration or a development authentication stub that can later be replaced without changing approval logic.
+- [x] Add middleware or view checks so pending/rejected users cannot submit jobs.
+- [x] Add admin approval/rejection views with audit fields.
+- [x] Add account status, login, and logout routes/templates.
+- [x] Add local test helpers for approved user, pending user, rejected user, and admin.
+- [x] Verification: tests for first sign-in pending state, approved access, rejected access, admin approve/reject, and session behavior after approval refresh.
 
 Connection to watch: do not block admin approval pages behind the same pending-user guard that pending users hit. Staff/admin flow needs a clear bypass.
 
 ### 9. Web Submission And History UI
 
-- [ ] Build home/submit form for prompt, backend profile, optional dataset, and example prompts.
-- [ ] On valid submission, create a queued job through `JobStore` and `QueueClient`, then redirect to job detail.
-- [ ] Add history table for the current user and admin job list for staff/admins.
-- [ ] Add clone/resubmit flow that preserves the original prompt/profile/dataset while creating a new job on submit.
-- [ ] Surface queue position/depth if available without making it a correctness dependency.
-- [ ] Verification: tests for submit success, validation errors, queue message creation, history visibility, clone/resubmit, and forbidden cross-user access.
+- [x] Build home/submit form for prompt, backend profile, optional dataset, and example prompts.
+- [x] On valid submission, create a queued job through `JobStore` and `QueueClient`, then redirect to job detail.
+- [x] Add history table for the current user and admin job list for staff/admins.
+- [x] Add clone/resubmit flow that preserves the original prompt/profile/dataset while creating a new job on submit.
+- [x] Surface queue position/depth if available without making it a correctness dependency.
+- [x] Verification: tests for submit success, validation errors, queue message creation, history visibility, clone/resubmit, and forbidden cross-user access.
 
 Connection to watch: views should call services, not queue or blob SDKs directly. This keeps Azure/local differences out of the templates and view logic.
 
 ### 10. Job Detail, Polling, And Artifact Views
 
-- [ ] Build job detail view showing prompt, resolved dataset, backend profile, status, timing, failure message, plot previews, report links, and logs when available.
-- [ ] Add an authorized generated-code endpoint or artifact fetch path so the job detail page can load source code asynchronously after the main page renders.
-- [ ] Build the polling partial at `/jobs/<submission_id>/status/` and poll only while status is `queued` or `running`.
-- [ ] Keep polling configurable: 1-2 seconds locally, 3-5 seconds in production if needed.
-- [ ] Implement artifact inline/download views with ownership/admin authorization.
-- [ ] Use `ArtifactStore.get_read_url` or a proxy response, but keep authorization in Django before exposing blob content.
-- [ ] Verification: tests for status partial rendering, polling stops on terminal statuses, generated-code display, failure-message rendering, artifact authorization, and content disposition for inline/download.
+- [x] Build job detail view showing prompt, resolved dataset, backend profile, status, timing, failure message, plot previews, report links, and logs when available.
+- [x] Add an authorized generated-code endpoint or artifact fetch path so the job detail page can load source code asynchronously after the main page renders.
+- [x] Build the polling partial at `/jobs/<submission_id>/status/` and poll only while status is `queued` or `running`.
+- [x] Keep polling configurable: 1-2 seconds locally, 3-5 seconds in production if needed.
+- [x] Implement artifact inline/download views with ownership/admin authorization.
+- [x] Use `ArtifactStore.get_read_url` or a proxy response, but keep authorization in Django before exposing blob content.
+- [x] Verification: tests for status partial rendering, polling stops on terminal statuses, generated-code display, failure-message rendering, artifact authorization, and content disposition for inline/download.
 
 Connection to watch: artifact routes should keep the previous URL semantics even though storage is blob-backed. Templates should not need to know whether the blob is Azurite or Azure.
 

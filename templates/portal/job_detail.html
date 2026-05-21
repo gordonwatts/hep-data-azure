@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Job {{ job.submission_id }}{% endblock %}
+
+{% block content %}
+<h1>Job {{ job.submission_id }}</h1>
+<p>Status: <strong>{{ job.status }}</strong></p>
+<p>Backend: {{ job.backend_profile }}</p>
+<p>Dataset: {{ job.resolved_dataset }}</p>
+<h2>Prompt</h2>
+<pre>{{ job.original_prompt }}</pre>
+<p><a href="{% url 'job-clone' job.submission_id %}">Clone</a></p>
+<div id="job-status" data-status-url="{% url 'job-status' job.submission_id %}" data-code-url="{% url 'job-generated-code' job.submission_id %}" data-poll-interval-ms="{{ poll_interval_ms }}">
+  {% include "portal/_job_status.html" %}
+</div>
+<h2>Generated code</h2>
+<div id="generated-code">
+  {% include "portal/_generated_code.html" %}
+</div>
+<h2>Artifacts</h2>
+<ul>
+  {% for artifact in artifacts %}
+  <li>
+    {{ artifact.artifact_kind }} -
+    <a href="{% url 'job-artifact' job.submission_id artifact.id %}">{{ artifact.blob_key }}</a>
+  </li>
+  {% empty %}
+  <li>No artifacts yet.</li>
+  {% endfor %}
+</ul>
+<script>
+(() => {
+  const statusNode = document.getElementById("job-status");
+  const codeNode = document.getElementById("generated-code");
+  if (!statusNode || !codeNode) {
+    return;
+  }
+
+  const statusUrl = statusNode.dataset.statusUrl;
+  const codeUrl = statusNode.dataset.codeUrl;
+  const pollIntervalMs = Number(statusNode.dataset.pollIntervalMs || "2000");
+  const terminalStates = new Set(["completed", "failed", "cancelled"]);
+
+  const refresh = async () => {
+    const [statusResponse, codeResponse] = await Promise.all([
+      fetch(statusUrl, { headers: { "X-Requested-With": "XMLHttpRequest" } }),
+      fetch(codeUrl, { headers: { "X-Requested-With": "XMLHttpRequest" } }),
+    ]);
+    statusNode.innerHTML = await statusResponse.text();
+    codeNode.innerHTML = await codeResponse.text();
+    const statusText = statusNode.textContent.toLowerCase();
+    if (![...terminalStates].some((state) => statusText.includes(state))) {
+      window.setTimeout(refresh, pollIntervalMs);
+    }
+  };
+
+  if (["queued", "running"].some((state) => statusNode.textContent.toLowerCase().includes(state))) {
+    window.setTimeout(refresh, pollIntervalMs);
+  }
+})();
+</script>
+{% endblock %}

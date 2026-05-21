@@ -1,0 +1,7 @@
+<p>Status: <strong>{{ job.status }}</strong></p>
+<p>Submitted: {{ job.submitted_at }}</p>
+<p>Started: {{ job.started_at|default:"-" }}</p>
+<p>Completed: {{ job.completed_at|default:"-" }}</p>
+{% if job.failure_message %}
+<p>Failure: {{ job.failure_message }}</p>
+{% endif %}

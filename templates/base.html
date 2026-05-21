@@ -6,9 +6,24 @@
     <title>{% block title %}Plot Portal{% endblock %}</title>
   </head>
   <body>
+    {% if user.is_authenticated %}
+      <p>
+        Signed in as {{ user.username }} |
+        <a href="{% url 'account-status' %}">Account status</a> |
+        <a href="{% url 'logout' %}">Logout</a>
+      </p>
+    {% else %}
+      <p><a href="{% url 'login' %}">Login</a></p>
+    {% endif %}
+    {% if messages %}
+      <ul>
+        {% for message in messages %}
+          <li>{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
     <main>
       {% block content %}{% endblock %}
     </main>
   </body>
 </html>
-

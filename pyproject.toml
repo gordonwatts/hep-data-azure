@@ -31,6 +31,7 @@ DJANGO_SETTINGS_MODULE = "hep_data_azure.settings.test"
 pythonpath = ["."]
 testpaths = ["tests", "portal"]
 addopts = "-q"
+cache_dir = "C:/tmp/pytest-cache"
 
 [tool.ruff]
 line-length = 100

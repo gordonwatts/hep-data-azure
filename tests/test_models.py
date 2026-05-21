@@ -21,7 +21,7 @@ class ModelTests(TestCase):
     def test_user_profile_defaults(self):
         user = self.User.objects.create_user(username="alice", password="secret")
 
-        profile = UserProfile.objects.create(user=user)
+        profile = UserProfile.objects.get(user=user)
 
         self.assertEqual(profile.role, UserRole.USER)
         self.assertEqual(profile.approval_state, ApprovalState.PENDING)
