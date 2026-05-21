@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
@@ -11,6 +12,12 @@ from django.db import transaction
 from django.utils import timezone
 
 from portal.models import Job, QueueMessageRecord
+
+with suppress(ImportError):
+    from azure.storage.queue import QueueServiceClient
+
+
+AZURITE_QUEUE_API_VERSION = "2023-01-03"
 
 
 @dataclass(frozen=True, slots=True)
@@ -234,7 +241,119 @@ class DatabaseQueueClient:
             raise KeyError("Queue message not found or receipt expired")
 
 
+class AzureQueueClient:
+    def __init__(self, connection_string: str, queue_name: str) -> None:
+        if "QueueServiceClient" not in globals():  # pragma: no cover - defensive
+            raise RuntimeError("azure-storage-queue is not installed")
+        self.queue_name = queue_name
+        self._service_client = QueueServiceClient.from_connection_string(
+            connection_string,
+            api_version=AZURITE_QUEUE_API_VERSION,
+        )
+        self._queue_client = self._service_client.get_queue_client(queue_name)
+        with suppress(Exception):
+            self._queue_client.create_queue()
+
+    def enqueue_job(self, job_id: str, backend_profile: str) -> str:
+        payload = QueuePayload(job_id=job_id, backend_profile=backend_profile)
+        job = Job.objects.get(submission_id=job_id)
+        message = self._queue_client.send_message(payload.to_body())
+        message_id = getattr(message, "id", None) or getattr(message, "message_id", None)
+        if not message_id:
+            raise RuntimeError("Azure queue did not return a message id")
+        QueueMessageRecord.objects.create(
+            job=job,
+            backend_profile=backend_profile,
+            body=payload.to_body(),
+            message_id=message_id,
+        )
+        return message_id
+
+    def receive_messages(
+        self,
+        max_messages: int = 1,
+        visibility_timeout_seconds: int = 30,
+    ) -> list[QueueMessage]:
+        if max_messages < 1:
+            return []
+
+        received: list[QueueMessage] = []
+        messages = self._queue_client.receive_messages(
+            max_messages=max_messages,
+            visibility_timeout=visibility_timeout_seconds,
+        )
+        with transaction.atomic():
+            for message in messages:
+                message_id = getattr(message, "id", None) or getattr(
+                    message, "message_id", ""
+                )
+                body = getattr(message, "content", "")
+                payload = QueuePayload.from_body(body)
+                queue_record = QueueMessageRecord.objects.filter(
+                    message_id=message_id,
+                ).first()
+                if queue_record is not None:
+                    queue_record.dequeue_count = getattr(message, "dequeue_count", 0) or (
+                        queue_record.dequeue_count + 1
+                    )
+                    queue_record.pop_receipt = getattr(message, "pop_receipt", "")
+                    queue_record.visible_at = timezone.now() + timedelta(
+                        seconds=visibility_timeout_seconds
+                    )
+                    queue_record.body = body
+                    queue_record.backend_profile = payload.backend_profile
+                    queue_record.save(
+                        update_fields=[
+                            "dequeue_count",
+                            "pop_receipt",
+                            "visible_at",
+                            "body",
+                            "backend_profile",
+                        ]
+                    )
+                received.append(
+                    QueueMessage(
+                        message_id=message_id,
+                        pop_receipt=getattr(message, "pop_receipt", ""),
+                        body=body,
+                        payload=payload,
+                        dequeue_count=getattr(message, "dequeue_count", 0) or 1,
+                    )
+                )
+        return received
+
+    def delete_message(self, message: QueueMessage) -> None:
+        self._queue_client.delete_message(message.message_id, message.pop_receipt)
+        deleted, _ = QueueMessageRecord.objects.filter(
+            message_id=message.message_id,
+            pop_receipt=message.pop_receipt,
+        ).delete()
+        if deleted == 0:
+            raise KeyError("Queue message not found or receipt expired")
+
+    def abandon_message(self, message: QueueMessage) -> None:
+        self._queue_client.update_message(
+            message.message_id,
+            pop_receipt=message.pop_receipt,
+            visibility_timeout=0,
+        )
+        updated = QueueMessageRecord.objects.filter(
+            message_id=message.message_id,
+            pop_receipt=message.pop_receipt,
+        ).update(visible_at=timezone.now())
+        if updated == 0:
+            raise KeyError("Queue message not found or receipt expired")
+
+
 def get_queue_client() -> QueueClient:
-    if getattr(settings, "QUEUE_BACKEND", "database") == "memory":
+    backend = getattr(settings, "QUEUE_BACKEND", "database")
+    if backend == "memory":
         return InMemoryQueueClient()
+    if backend == "azure":
+        connection_string = (
+            settings.QUEUE_CONNECTION_STRING
+            or settings.AZURE_STORAGE_CONNECTION_STRING
+            or "UseDevelopmentStorage=true"
+        )
+        return AzureQueueClient(connection_string, settings.QUEUE_NAME)
     return DatabaseQueueClient()

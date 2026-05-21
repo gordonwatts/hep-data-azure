@@ -118,13 +118,13 @@ Connection to watch: the backend profile selected in the web form must be the sa
 
 ### 5. Queue Client Interface
 
-- [ ] Define a `QueueClient` protocol or small class interface with `enqueue_job`, `receive_messages`, `delete_message`, and `abandon_message`.
-- [ ] Implement an in-memory fake for unit tests.
-- [ ] Implement Azure Storage Queue support that works against Azurite locally.
-- [ ] Ensure `enqueue_job` serializes only `job_id` and `backend_profile`.
-- [ ] Record returned message id on the `Job` when available.
-- [ ] Add queue visibility timeout and poison/retry behavior settings.
-- [ ] Verification: unit tests for fake client, message shape, missing/invalid message payloads, and Azurite-backed behavior if practical in integration tests.
+- [x] Define a `QueueClient` protocol or small class interface with `enqueue_job`, `receive_messages`, `delete_message`, and `abandon_message`.
+- [x] Implement an in-memory fake for unit tests.
+- [x] Implement Azure Storage Queue support that works against Azurite locally.
+- [x] Ensure `enqueue_job` serializes only `job_id` and `backend_profile`.
+- [x] Record returned message id on the `Job` when available.
+- [x] Add queue visibility timeout and poison/retry behavior settings.
+- [x] Verification: unit tests for fake client, message shape, missing/invalid message payloads, and Azurite-backed behavior if practical in integration tests.
 
 Connection to watch: do not put prompts or secrets into queue payloads. The runner must load all sensitive and large context from the database, blob storage, or secret provider.
 

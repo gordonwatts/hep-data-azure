@@ -157,7 +157,7 @@ def _queue_message_id() -> str:
 
 class QueueMessageRecord(models.Model):
     message_id = models.CharField(
-        max_length=32,
+        max_length=128,
         unique=True,
         default=_queue_message_id,
         editable=False,
