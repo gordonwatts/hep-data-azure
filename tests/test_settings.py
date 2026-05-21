@@ -18,6 +18,7 @@ def test_base_settings_defaults(monkeypatch):
         "PLOT_RUNNER_TIMEOUT_SECONDS",
         "PLOT_RUNNER_ROOT",
         "JOB_RETRY_LIMIT",
+        "PLOT_RUNNER_DRIVER",
         "SECRET_SOURCE",
         "SERVICEX_CONFIG_PATH",
     ]:
@@ -35,6 +36,7 @@ def test_base_settings_defaults(monkeypatch):
     assert settings.PLOT_RUNNER_TIMEOUT_SECONDS == 600
     assert Path(settings.PLOT_RUNNER_ROOT).as_posix().endswith("tmp/plot-runner")
     assert settings.JOB_RETRY_LIMIT == 3
+    assert settings.PLOT_RUNNER_DRIVER == "python -m portal.plot_driver"
     assert settings.SECRET_SOURCE == "env"
     assert Path(settings.SERVICEX_CONFIG_PATH).as_posix().endswith(
         "secrets/servicex.yaml"

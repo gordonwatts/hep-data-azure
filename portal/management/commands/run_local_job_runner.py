@@ -8,7 +8,7 @@ from django.db.models import F
 
 from portal.models import JobStatus, QueueMessageRecord
 from portal.queue import QueuePayload, get_queue_client
-from portal.runner import run_fake_plot_job
+from portal.runner import run_command_plot_job
 
 
 class Command(BaseCommand):
@@ -64,7 +64,7 @@ class Command(BaseCommand):
                         abandon_message = True
                     else:
                         try:
-                            result = run_fake_plot_job(payload.job_id)
+                            result = run_command_plot_job(payload.job_id)
                         except Exception:
                             self._bump_retry_count(job)
                             abandon_message = True

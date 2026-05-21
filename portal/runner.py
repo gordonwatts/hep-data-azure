@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
+import shlex
 import shutil
+import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from time import monotonic
@@ -45,6 +48,14 @@ class PlotRunnerContext:
     github_client_secret_present: bool
     key_vault_url: str
     key_vault_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class PlotDriverResult:
+    returncode: int
+    stdout: str
+    stderr: str
+    timed_out: bool = False
 
 
 def build_codex_prompt(job: Job) -> str:
@@ -139,6 +150,116 @@ def _write_runner_inputs(
     return prompt_path, context_path
 
 
+def _write_known_artifacts(job: Job, work_dir: Path) -> tuple[ArtifactRef, ...]:
+    refs: list[ArtifactRef] = []
+    for artifact_kind, filename, content_type in [
+        (ArtifactKind.SCRIPT, "generated.py", "text/x-python"),
+        (ArtifactKind.REPORT, "comments.md", "text/markdown"),
+        (ArtifactKind.PLOT, "plot.svg", "image/svg+xml"),
+        (ArtifactKind.LOG, "run.log", "text/plain"),
+    ]:
+        path = work_dir / filename
+        if not path.exists():
+            continue
+        refs.append(
+            _artifact_store().put_artifact(
+                job_id=str(job.submission_id),
+                local_path=path,
+                artifact_kind=artifact_kind,
+                content_type=content_type,
+                is_canonical=True,
+            )
+        )
+    for ref in refs:
+        _record_artifact(job, ref)
+    return tuple(refs)
+
+
+def _append_run_log(work_dir: Path, content: str) -> None:
+    log_path = work_dir / "run.log"
+    previous = log_path.read_text(encoding="utf-8") if log_path.exists() else ""
+    _write_text(log_path, previous + content)
+
+
+def build_plot_driver_command(
+    job: Job,
+    work_dir: Path,
+    prompt_path: Path,
+    context_path: Path,
+) -> list[str]:
+    driver = getattr(settings, "PLOT_RUNNER_DRIVER", "python -m portal.plot_driver")
+    command = shlex.split(driver) if isinstance(driver, str) else list(driver)
+    return [
+        *command,
+        "--job-id",
+        str(job.submission_id),
+        "--work-dir",
+        str(work_dir),
+        "--prompt-path",
+        str(prompt_path),
+        "--context-path",
+        str(context_path),
+    ]
+
+
+def run_plot_driver_subprocess(
+    job: Job,
+    work_dir: Path,
+    prompt_path: Path,
+    context_path: Path,
+    *,
+    timeout_seconds: int,
+    fail: bool = False,
+) -> PlotDriverResult:
+    command = build_plot_driver_command(job, work_dir, prompt_path, context_path)
+    env = os.environ.copy()
+    if fail:
+        env["PLOT_DRIVER_FAIL"] = "1"
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=Path(settings.BASE_DIR),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        _append_run_log(
+            work_dir,
+            "".join(
+                [
+                    (exc.stdout or ""),
+                    (exc.stderr or ""),
+                    f"timeout after {timeout_seconds}s\n",
+                ]
+            ),
+        )
+        return PlotDriverResult(
+            returncode=124,
+            stdout=exc.stdout or "",
+            stderr=exc.stderr or "",
+            timed_out=True,
+        )
+
+    _append_run_log(
+        work_dir,
+        "".join(
+            [
+                completed.stdout or "",
+                completed.stderr or "",
+                f"exit code {completed.returncode}\n",
+            ]
+        ),
+    )
+    return PlotDriverResult(
+        returncode=completed.returncode,
+        stdout=completed.stdout or "",
+        stderr=completed.stderr or "",
+    )
+
+
 def _runner_secret_values() -> list[str]:
     secret_provider = get_secret_provider()
     secret_values: list[str] = []
@@ -153,12 +274,6 @@ def _runner_secret_values() -> list[str]:
 
 def _artifact_store():
     return get_artifact_store()
-
-
-def _runner_root() -> Path:
-    root = Path(settings.BASE_DIR) / "tmp" / "plot-runner"
-    root.mkdir(parents=True, exist_ok=True)
-    return root
 
 
 def _write_text(path: Path, content: str) -> None:
@@ -233,35 +348,7 @@ def run_fake_plot_job(job_id: str, *, fail: bool = False) -> RunnerResult:
 
         if fail:
             _write_text(log_path, log_path.read_text(encoding="utf-8") + "simulated failure\n")
-            refs.append(
-                _artifact_store().put_artifact(
-                    job_id=str(job.submission_id),
-                    local_path=script_path,
-                    artifact_kind=ArtifactKind.SCRIPT,
-                    content_type="text/x-python",
-                    is_canonical=True,
-                )
-            )
-            refs.append(
-                _artifact_store().put_artifact(
-                    job_id=str(job.submission_id),
-                    local_path=comments_path,
-                    artifact_kind=ArtifactKind.REPORT,
-                    content_type="text/markdown",
-                    is_canonical=True,
-                )
-            )
-            refs.append(
-                _artifact_store().put_artifact(
-                    job_id=str(job.submission_id),
-                    local_path=log_path,
-                    artifact_kind=ArtifactKind.LOG,
-                    content_type="text/plain",
-                    is_canonical=True,
-                )
-            )
-            for ref in refs:
-                _record_artifact(job, ref)
+            refs.extend(_write_known_artifacts(job, work_dir))
             job = mark_failed(job, failure_message="Simulated plot runner failure")
             return RunnerResult(
                 job=job,
@@ -273,41 +360,7 @@ def run_fake_plot_job(job_id: str, *, fail: bool = False) -> RunnerResult:
 
         _write_text(plot_path, _fake_svg(job))
         _write_text(log_path, log_path.read_text(encoding="utf-8") + "simulated success\n")
-
-        refs.extend(
-            [
-                _artifact_store().put_artifact(
-                    job_id=str(job.submission_id),
-                    local_path=script_path,
-                    artifact_kind=ArtifactKind.SCRIPT,
-                    content_type="text/x-python",
-                    is_canonical=True,
-                ),
-                _artifact_store().put_artifact(
-                    job_id=str(job.submission_id),
-                    local_path=comments_path,
-                    artifact_kind=ArtifactKind.REPORT,
-                    content_type="text/markdown",
-                    is_canonical=True,
-                ),
-                _artifact_store().put_artifact(
-                    job_id=str(job.submission_id),
-                    local_path=plot_path,
-                    artifact_kind=ArtifactKind.PLOT,
-                    content_type="image/svg+xml",
-                    is_canonical=True,
-                ),
-                _artifact_store().put_artifact(
-                    job_id=str(job.submission_id),
-                    local_path=log_path,
-                    artifact_kind=ArtifactKind.LOG,
-                    content_type="text/plain",
-                    is_canonical=True,
-                ),
-            ]
-        )
-        for ref in refs:
-            _record_artifact(job, ref)
+        refs.extend(_write_known_artifacts(job, work_dir))
 
         elapsed = monotonic() - started
         job = mark_completed(
@@ -318,6 +371,70 @@ def run_fake_plot_job(job_id: str, *, fail: bool = False) -> RunnerResult:
             },
         )
         Job.objects.filter(pk=job.pk).update(runtime_seconds=elapsed)
+        return RunnerResult(
+            job=job,
+            artifact_refs=tuple(refs),
+            work_dir=work_dir,
+            prompt_path=prompt_path,
+            context_path=context_path,
+        )
+    except Exception as exc:
+        job = mark_failed(
+            job,
+            failure_message=redact_secret_values(
+                f"Runner crashed: {exc}",
+                _runner_secret_values(),
+            ),
+        )
+        return RunnerResult(
+            job=job,
+            artifact_refs=tuple(refs),
+            work_dir=work_dir,
+            prompt_path=prompt_path,
+            context_path=context_path,
+        )
+
+
+def run_command_plot_job(job_id: str, *, fail: bool = False) -> RunnerResult:
+    job = claim_job(job_id)
+    started = monotonic()
+    refs: list[ArtifactRef] = []
+    work_dir = prepare_runner_work_dir(str(job.submission_id))
+    context = build_plot_runner_context(job)
+    prompt_path, context_path = _write_runner_inputs(work_dir, job, context)
+
+    try:
+        result = run_plot_driver_subprocess(
+            job,
+            work_dir,
+            prompt_path,
+            context_path,
+            timeout_seconds=context.plot_runner_timeout_seconds,
+            fail=fail,
+        )
+        refs.extend(_write_known_artifacts(job, work_dir))
+        if result.timed_out:
+            job = mark_failed(
+                job,
+                failure_message=(
+                    f"Plot runner timed out after {context.plot_runner_timeout_seconds}s"
+                ),
+            )
+        elif result.returncode != 0:
+            job = mark_failed(
+                job,
+                failure_message=f"Plot runner exited with code {result.returncode}",
+            )
+        else:
+            elapsed = monotonic() - started
+            job = mark_completed(
+                job,
+                result_metadata={
+                    "artifacts": [ref.blob_key for ref in refs],
+                    "runtime_seconds": round(elapsed, 3),
+                },
+            )
+            Job.objects.filter(pk=job.pk).update(runtime_seconds=elapsed)
         return RunnerResult(
             job=job,
             artifact_refs=tuple(refs),

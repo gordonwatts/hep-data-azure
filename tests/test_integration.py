@@ -65,5 +65,5 @@ class IntegrationSmokeTests(TestCase):
                 )
                 self.assertContains(
                     code_response,
-                    "hello from the fake plot runner",
+                    "hello from the local plot driver",
                 )

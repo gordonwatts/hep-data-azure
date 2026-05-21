@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from django.core.management.base import BaseCommand, CommandError
 
-from portal.runner import run_fake_plot_job
+from portal.runner import run_command_plot_job
 from portal.services import JobNotClaimableError, SingleActiveJobError
 
 
 class Command(BaseCommand):
-    help = "Run the fake local plot runner for a single job."
+    help = "Run the local plot runner subprocess for a single job."
 
     def add_arguments(self, parser):
         parser.add_argument("--job-id", required=True)
@@ -17,7 +17,7 @@ class Command(BaseCommand):
         job_id = options["job_id"]
         fail = options["fail"]
         try:
-            result = run_fake_plot_job(job_id, fail=fail)
+            result = run_command_plot_job(job_id, fail=fail)
         except (JobNotClaimableError, SingleActiveJobError) as exc:
             raise CommandError(str(exc)) from exc
 
