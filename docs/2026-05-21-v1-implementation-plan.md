@@ -142,12 +142,12 @@ Connection to watch: `JobArtifact` stores blob metadata only. Do not reintroduce
 
 ### 7. Job Store And Status Transitions
 
-- [ ] Implement service functions for `create_queued_job`, `claim_job`, `mark_running`, `mark_completed`, `mark_failed`, `mark_cancelled`, and user/admin job listing.
-- [ ] Make job creation transactional: create the row, enqueue the message, record queue metadata, and leave a clear failure path if enqueue fails.
-- [ ] Enforce owner-only visibility for regular users and all-job visibility for staff/admins.
-- [ ] Enforce single-active-job behavior before marking a job running.
-- [ ] Define how stale `running` jobs are detected or timed out.
-- [ ] Verification: unit tests for legal and illegal status transitions, user isolation, admin access, single-active-job enforcement, enqueue failure behavior, and cancellation of queued jobs.
+- [x] Implement service functions for `create_queued_job`, `claim_job`, `mark_running`, `mark_completed`, `mark_failed`, `mark_cancelled`, and user/admin job listing.
+- [x] Make job creation transactional: create the row, enqueue the message, record queue metadata, and leave a clear failure path if enqueue fails.
+- [x] Enforce owner-only visibility for regular users and all-job visibility for staff/admins.
+- [x] Enforce single-active-job behavior before marking a job running.
+- [x] Define how stale `running` jobs are detected or timed out.
+- [x] Verification: unit tests for legal and illegal status transitions, user isolation, admin access, single-active-job enforcement, enqueue failure behavior, and cancellation of queued jobs.
 
 Connection to watch: queue delivery can repeat. `claim_job` and terminal-state checks must be idempotent enough that duplicate messages do not create duplicate executions or corrupt terminal jobs.
 
