@@ -10,6 +10,7 @@ from django.conf import settings
 
 from portal.artifacts import ArtifactRef, get_artifact_store
 from portal.models import ArtifactKind, Job, JobArtifact
+from portal.secrets import get_secret_provider, redact_secret_values
 from portal.services import claim_job, mark_completed, mark_failed
 
 
@@ -36,6 +37,7 @@ class PlotRunnerContext:
     queue_name: str
     queue_visibility_timeout_seconds: int
     plot_runner_timeout_seconds: int
+    secret_source: str
     servicex_config_path: str
     servicex_config_present: bool
     openai_api_key_present: bool
@@ -70,6 +72,7 @@ def prepare_runner_work_dir(job_id: str) -> Path:
 def build_plot_runner_context(job: Job) -> PlotRunnerContext:
     database_url = getattr(settings, "DATABASE_URL", None) or ""
     servicex_path = Path(settings.SERVICEX_CONFIG_PATH)
+    secret_provider = get_secret_provider()
     return PlotRunnerContext(
         job_id=str(job.submission_id),
         submission_id=str(job.submission_id),
@@ -83,11 +86,13 @@ def build_plot_runner_context(job: Job) -> PlotRunnerContext:
         queue_name=settings.QUEUE_NAME,
         queue_visibility_timeout_seconds=settings.QUEUE_VISIBILITY_TIMEOUT_SECONDS,
         plot_runner_timeout_seconds=settings.PLOT_RUNNER_TIMEOUT_SECONDS,
+        secret_source=settings.SECRET_SOURCE,
         servicex_config_path=str(servicex_path),
-        servicex_config_present=servicex_path.exists(),
-        openai_api_key_present=bool(settings.OPENAI_API_KEY),
-        github_client_id_present=bool(settings.GITHUB_CLIENT_ID),
-        github_client_secret_present=bool(settings.GITHUB_CLIENT_SECRET),
+        servicex_config_present=servicex_path.exists()
+        or secret_provider.has_secret("SERVICEX_CONFIG_PATH"),
+        openai_api_key_present=secret_provider.has_secret("OPENAI_API_KEY"),
+        github_client_id_present=secret_provider.has_secret("GITHUB_CLIENT_ID"),
+        github_client_secret_present=secret_provider.has_secret("GITHUB_CLIENT_SECRET"),
         key_vault_url=settings.KEY_VAULT_URL or "",
         key_vault_name=settings.KEY_VAULT_NAME or "",
     )
@@ -98,6 +103,7 @@ def _write_runner_inputs(
     job: Job,
     context: PlotRunnerContext,
 ) -> tuple[Path, Path]:
+    secret_provider = get_secret_provider()
     prompt_path = work_dir / "prompt.txt"
     context_path = work_dir / "context.json"
     job_path = work_dir / "job.json"
@@ -120,10 +126,29 @@ def _write_runner_inputs(
         ),
         encoding="utf-8",
     )
-    if context.servicex_config_present:
+    servicex_source = Path(context.servicex_config_path)
+    if servicex_source.exists():
         secrets_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(context.servicex_config_path, secrets_dir / "servicex.yaml")
+        shutil.copy2(servicex_source, secrets_dir / "servicex.yaml")
+    elif secret_provider.has_secret("SERVICEX_CONFIG_PATH"):
+        secrets_dir.mkdir(parents=True, exist_ok=True)
+        secret_provider.materialize_secret_file(
+            "SERVICEX_CONFIG_PATH",
+            secrets_dir / "servicex.yaml",
+        )
     return prompt_path, context_path
+
+
+def _runner_secret_values() -> list[str]:
+    secret_provider = get_secret_provider()
+    secret_values: list[str] = []
+    for name in ("OPENAI_API_KEY", "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"):
+        if secret_provider.has_secret(name):
+            try:
+                secret_values.append(secret_provider.get_secret(name))
+            except Exception:  # pragma: no cover - defensive redaction helper
+                continue
+    return secret_values
 
 
 def _artifact_store():
@@ -301,7 +326,13 @@ def run_fake_plot_job(job_id: str, *, fail: bool = False) -> RunnerResult:
             context_path=context_path,
         )
     except Exception as exc:
-        job = mark_failed(job, failure_message=f"Runner crashed: {exc}")
+        job = mark_failed(
+            job,
+            failure_message=redact_secret_values(
+                f"Runner crashed: {exc}",
+                _runner_secret_values(),
+            ),
+        )
         return RunnerResult(
             job=job,
             artifact_refs=tuple(refs),

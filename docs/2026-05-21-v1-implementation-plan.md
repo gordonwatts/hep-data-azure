@@ -246,12 +246,12 @@ Connection to watch: the spec says outputs should be saved back to the database,
 
 ### 16. Secrets Abstraction
 
-- [ ] Implement `SecretProvider` with local env/file support.
-- [ ] Add a Key Vault provider behind the same interface.
-- [ ] Support ServiceX config as a mounted local file and as a production secret materialized to a temp file at runtime.
-- [ ] Ensure secrets are never logged, serialized to queue messages, stored in job metadata, or baked into images.
-- [ ] Add tests for missing secrets, file secret lookup, and log redaction helpers.
-- [ ] Verification: local fake secret tests and a documented manual check that logs do not contain secret values.
+- [x] Implement `SecretProvider` with local env/file support.
+- [x] Add a Key Vault provider behind the same interface.
+- [x] Support ServiceX config as a mounted local file and as a production secret materialized to a temp file at runtime.
+- [x] Ensure secrets are never logged, serialized to queue messages, stored in job metadata, or baked into images.
+- [x] Add tests for missing secrets, file secret lookup, and log redaction helpers.
+- [x] Verification: local fake secret tests and a documented manual check that logs do not contain secret values.
 
 Connection to watch: web and plot-runner identities should have different secret scopes in Azure. Do not build one global "all secrets" accessor into shared code.
 
