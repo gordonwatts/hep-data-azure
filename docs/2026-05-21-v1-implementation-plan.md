@@ -219,11 +219,11 @@ Connection to watch: the web container must not require Docker socket access. On
 ### 14. Integration Test Harness
 
 - [x] Add tests that exercise submit -> queue -> local runner -> fake plot runner -> blob artifact -> web result.
-- [ ] Add tests for cross-user artifact/job access denial.
-- [ ] Add failed-job tests that verify failure text and logs appear.
-- [ ] Add restart/persistence test instructions or automated Compose smoke where practical.
+- [x] Add tests for cross-user artifact/job access denial.
+- [x] Add failed-job tests that verify failure text and logs appear.
+- [x] Add restart/persistence test instructions or automated Compose smoke where practical.
 - [ ] Add fixtures/factories for users, approvals, jobs, queue messages, and artifacts.
-- [ ] Verification: document and run targeted integration test commands in CI or local developer docs.
+- [x] Verification: document and run targeted integration test commands in CI or local developer docs.
 
 Connection to watch: use fakes for fast unit tests and Azurite/Postgres for integration tests. Do not make every test require Docker or real Azure.
 

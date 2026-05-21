@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
+
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from portal.models import ApprovalState, Job, UserProfile
+from portal.artifacts import LocalArtifactStore
+from portal.models import ApprovalState, ArtifactKind, Job, JobArtifact, UserProfile
+from portal.queue import DatabaseQueueClient
+from portal.runner import run_fake_plot_job
+from portal.services import create_queued_job
 
 
 class ViewTests(TestCase):
@@ -111,6 +118,72 @@ class ViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
+
+    def test_non_owner_cannot_view_job_artifact(self):
+        owner, profile = self.make_user("artifact-owner")
+        profile.approval_state = ApprovalState.APPROVED
+        profile.save(update_fields=["approval_state"])
+        other, other_profile = self.make_user("artifact-other")
+        other_profile.approval_state = ApprovalState.APPROVED
+        other_profile.save(update_fields=["approval_state"])
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as artifact_dir:
+            with override_settings(ARTIFACT_STORAGE_ROOT=artifact_dir):
+                store = LocalArtifactStore(Path(artifact_dir))
+                source = Path(artifact_dir) / "artifact.txt"
+                source.write_text("artifact content", encoding="utf-8")
+                job = Job.objects.create(owner=owner, original_prompt="Plot", backend_profile="rdf")
+                ref = store.put_artifact(
+                    job_id=str(job.submission_id),
+                    local_path=source,
+                    artifact_kind=ArtifactKind.REPORT,
+                    content_type="text/plain",
+                    is_canonical=True,
+                )
+                artifact = JobArtifact.objects.create(
+                    job=job,
+                    artifact_kind=ref.artifact_kind,
+                    blob_container=ref.blob_container,
+                    blob_key=ref.blob_key,
+                    content_type=ref.content_type,
+                    size_bytes=ref.size_bytes,
+                    is_canonical=ref.is_canonical,
+                )
+
+                self.client.force_login(other)
+                response = self.client.get(
+                    reverse(
+                        "job-artifact",
+                        kwargs={"submission_id": job.submission_id, "artifact_id": artifact.id},
+                    )
+                )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_failed_job_detail_shows_failure_message_and_log(self):
+        user, profile = self.make_user("failed-job")
+        profile.approval_state = ApprovalState.APPROVED
+        profile.save(update_fields=["approval_state"])
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as artifact_dir:
+            with override_settings(ARTIFACT_STORAGE_ROOT=artifact_dir, QUEUE_BACKEND="database"):
+                queue_client = DatabaseQueueClient()
+                job = create_queued_job(
+                    owner=user,
+                    original_prompt="Make a plot",
+                    backend_profile="rdf",
+                    queue_client=queue_client,
+                ).job
+                run_fake_plot_job(str(job.submission_id), fail=True)
+
+                self.client.force_login(user)
+                response = self.client.get(
+                    reverse("job-detail", kwargs={"submission_id": job.submission_id})
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Simulated plot runner failure")
+        self.assertContains(response, "Log")
 
     def test_account_status_view_shows_state(self):
         user, profile = self.make_user("status")
