@@ -233,14 +233,15 @@ Connection to watch: use fakes for fast unit tests and Azurite/Postgres for inte
 - [x] Load job prompt, backend profile, dataset, database, storage, and secret config from services/settings.
 - [x] Create an isolated working directory per job.
 - [x] Build the Codex prompt exactly from the spec pattern: `$iris-hep Please write a stand-alone python file that we can use uv to run (and auto install) that will do the following. It should produce a plot and a file comments.md with comments as output: <plot-question>`.
-- [ ] Install or include the `iris-hep/marketplace` skills in the plot-runner image.
-- [ ] Define the real plot-runner Dockerfile in this repo, including Codex installation/configuration plus the analysis dependencies needed for ROOT/Python/ServiceX workflows.
+- [x] Install or include the `iris-hep/marketplace` skills in the plot-runner image.
+- [x] Define the real plot-runner Dockerfile in this repo, including Codex installation/configuration plus the analysis dependencies needed for ROOT/Python/ServiceX workflows.
 - [ ] Run Codex with an OpenAI API key supplied at runtime, not baked into the image.
-- [ ] Enforce a configurable Codex/script execution timeout, defaulting to 10 minutes for initial implementation.
-- [ ] On timeout, kill the active execution, upload any generated code, `comments.md`, plots, logs, or partial outputs that exist, and mark the job failed with a clear timeout message.
+- [x] Enforce a configurable Codex/script execution timeout, defaulting to 10 minutes for initial implementation.
+- [x] On timeout, kill the active execution, upload any generated code, `comments.md`, plots, logs, or partial outputs that exist, and mark the job failed with a clear timeout message.
 - [ ] Capture generated code, `comments.md`, terminal log, plots, and bundles as artifacts.
 - [ ] Catch crashes and mark failed with sanitized exception summaries and log artifacts.
-- [ ] Verification: unit tests around command construction/sanitization, fake subprocess tests for success/failure/timeout, partial artifact upload on timeout, and one local real-run smoke test when credentials and ServiceX config are available.
+- [x] Verification: unit tests around command construction/sanitization, fake subprocess tests for success/failure/timeout, partial artifact upload on timeout.
+- [ ] Verification: one local real-run smoke test when credentials and ServiceX config are available.
 
 Connection to watch: the spec says outputs should be saved back to the database, but the architecture says large files belong in blob storage. Implement this as DB metadata plus failure text in DB, with generated code and other outputs as blob artifacts. The web page can display source code, but should request it separately after the main detail page has loaded.
 

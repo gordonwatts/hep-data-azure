@@ -39,8 +39,8 @@ docker compose up --build
 That starts Postgres, Azurite, the web app, and the local job runner. The migrate
 service also seeds the local `admin` and `demo` users automatically.
 
-The optional repo-owned plot-runner image is available through the `plot-runner`
-service:
+The optional repo-owned plot-runner image is built from `Dockerfile.plot-runner`
+and available through the `plot-runner` service:
 
 ```powershell
 docker compose run --rm plot-runner plot_runner --job-id <uuid>
