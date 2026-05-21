@@ -7,7 +7,7 @@ from time import monotonic
 
 from django.conf import settings
 
-from portal.artifacts import ArtifactRef, LocalArtifactStore
+from portal.artifacts import ArtifactRef, get_artifact_store
 from portal.models import ArtifactKind, Job, JobArtifact
 from portal.services import claim_job, mark_completed, mark_failed
 
@@ -18,8 +18,8 @@ class RunnerResult:
     artifact_refs: tuple[ArtifactRef, ...]
 
 
-def _artifact_store() -> LocalArtifactStore:
-    return LocalArtifactStore(Path(settings.ARTIFACT_STORAGE_ROOT))
+def _artifact_store():
+    return get_artifact_store()
 
 
 def _runner_root() -> Path:

@@ -130,13 +130,13 @@ Connection to watch: do not put prompts or secrets into queue payloads. The runn
 
 ### 6. Artifact Store Interface
 
-- [ ] Define `ArtifactRef` and an `ArtifactStore` interface with `put_artifact`, `get_read_url`, and `delete_artifacts_for_job`.
-- [ ] Implement an in-memory or temp-directory fake for unit tests.
-- [ ] Implement Azure Blob Storage support that works against Azurite locally.
-- [ ] Standardize blob keys, for example `jobs/<job_id>/<artifact_kind>/<filename>`.
-- [ ] Normalize content-type detection and explicit artifact kinds: `report`, `plot`, `script`, `log`, `bundle`.
-- [ ] Ensure read URLs are short-lived or proxied through authorized Django views.
-- [ ] Verification: tests for upload metadata, generated read URL/proxy behavior, content type, size, canonical artifact selection, and deletion.
+- [x] Define `ArtifactRef` and an `ArtifactStore` interface with `put_artifact`, `get_read_url`, and `delete_artifacts_for_job`.
+- [x] Implement an in-memory or temp-directory fake for unit tests.
+- [x] Implement Azure Blob Storage support that works against Azurite locally.
+- [x] Standardize blob keys, for example `jobs/<job_id>/<artifact_kind>/<filename>`.
+- [x] Normalize content-type detection and explicit artifact kinds: `report`, `plot`, `script`, `log`, `bundle`.
+- [x] Ensure read URLs are short-lived or proxied through authorized Django views.
+- [x] Verification: tests for upload metadata, generated read URL/proxy behavior, content type, size, canonical artifact selection, and deletion.
 
 Connection to watch: `JobArtifact` stores blob metadata only. Do not reintroduce filesystem paths into the model as a production concept.
 

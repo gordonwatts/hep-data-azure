@@ -6,10 +6,16 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LogoutView
-from django.http import Http404, HttpRequest, HttpResponse, HttpResponseForbidden
+from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
+from portal.artifacts import (
+    artifact_ref_from_model,
+    get_artifact_store,
+    read_artifact_bytes,
+    read_artifact_text,
+)
 from portal.auth import approval_required, ensure_user_profile, is_user_approved, staff_required
 from portal.backend import default_backend_profile, load_example_prompts
 from portal.forms import ApprovalDecisionForm, JobSubmissionForm
@@ -142,10 +148,10 @@ def job_generated_code(request: HttpRequest, submission_id: str) -> HttpResponse
     )
     generated_code = None
     if script_artifact:
-        artifact_root = Path(settings.ARTIFACT_STORAGE_ROOT)
-        local_path = artifact_root / script_artifact.blob_container / script_artifact.blob_key
-        if local_path.exists():
-            generated_code = local_path.read_text(encoding="utf-8")
+        generated_code = read_artifact_text(
+            artifact_ref_from_model(job.submission_id, script_artifact),
+            get_artifact_store(),
+        )
     return render(
         request,
         "portal/_generated_code.html",
@@ -199,18 +205,17 @@ def job_artifact(request: HttpRequest, submission_id: str, artifact_id: int) -> 
         return HttpResponseForbidden("You do not have access to this artifact.")
 
     artifact = get_object_or_404(JobArtifact, pk=artifact_id, job=job)
-    artifact_root = Path(settings.ARTIFACT_STORAGE_ROOT)
-    local_path = artifact_root / artifact.blob_container / artifact.blob_key
-    if not local_path.exists():
-        raise Http404("Artifact content is not available locally.")
-
-    response = HttpResponse(local_path.read_bytes(), content_type=artifact.content_type)
+    artifact_bytes = read_artifact_bytes(
+        artifact_ref_from_model(job.submission_id, artifact),
+        get_artifact_store(),
+    )
+    response = HttpResponse(artifact_bytes, content_type=artifact.content_type)
     disposition = (
         "inline"
         if artifact.artifact_kind in {ArtifactKind.REPORT, ArtifactKind.PLOT}
         else "attachment"
     )
-    response["Content-Disposition"] = f'{disposition}; filename="{local_path.name}"'
+    response["Content-Disposition"] = f'{disposition}; filename="{Path(artifact.blob_key).name}"'
     return response
 
 

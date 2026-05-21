@@ -64,8 +64,8 @@ docker compose run --rm plot-runner plot_runner --job-id <uuid>
 The local queue runner now runs as a separate process, and the next step is to
 replace the filesystem artifact store with an Azurite-backed blob adapter.
 
-The compose stack keeps job rows in Postgres and artifacts on the mounted volume,
-so a container restart should preserve completed jobs and their outputs.
+The compose stack keeps job rows in Postgres and artifacts in Azurite, so a
+container restart should preserve completed jobs and their outputs.
 
 Useful checks:
 
