@@ -1,7 +1,7 @@
 UV ?= uv
 PYTHON ?= python
 
-.PHONY: install check test lint format runserver migrate
+.PHONY: install check test lint format runserver migrate compose-up compose-down compose-config
 
 install:
 	$(UV) sync --extra dev
@@ -24,3 +24,12 @@ runserver:
 migrate:
 	$(UV) run $(PYTHON) manage.py migrate
 
+
+compose-up:
+	docker compose up --build
+
+compose-down:
+	docker compose down
+
+compose-config:
+	docker compose config

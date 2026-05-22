@@ -6,6 +6,14 @@ import os
 import subprocess
 from pathlib import Path
 
+from portal.secrets import MissingSecretError, get_secret_provider
+
+CODEX_CONFIG_TOML = """model = "gpt-5.4-mini"
+model_reasoning_effort = "medium"
+[projects."/app"]
+trust_level = "trusted"
+"""
+
 
 def _write_text(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -67,6 +75,29 @@ def build_codex_command(work_dir: Path, output_last_message: Path) -> list[str]:
     ]
 
 
+def _codex_home() -> Path:
+    return Path(os.environ.get("CODEX_HOME", "/config"))
+
+
+def _prepare_codex_auth(api_key: str) -> Path:
+    codex_home = _codex_home()
+    codex_home.mkdir(parents=True, exist_ok=True)
+    _write_text(codex_home / "config.toml", CODEX_CONFIG_TOML)
+    _write_text(
+        codex_home / "auth.json",
+        json.dumps(
+            {
+                "auth_mode": "apikey",
+                "OPENAI_API_KEY": api_key,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+    )
+    return codex_home
+
+
 def _codex_prompt(job_id: str, prompt: str, context: dict[str, object]) -> str:
     backend_profile = str(context.get("backend_profile", ""))
     resolved_dataset = str(context.get("resolved_dataset", ""))
@@ -75,11 +106,11 @@ def _codex_prompt(job_id: str, prompt: str, context: dict[str, object]) -> str:
             f"You are the plot runner for job {job_id}.",
             "Read prompt.txt and context.json in the current working directory.",
             "Create generated.py and comments.md in the current working directory.",
-            "generated.py must be a stand-alone Python script that produces the "
+            "generated.py must be a stand-alone Python script that produces the ",
             "requested plot when run.",
-            "If you need Python dependencies, make generated.py compatible with "
+            "If you need Python dependencies, make generated.py compatible with ",
             "`uv run generated.py`.",
-            "After writing generated.py, run `uv run generated.py` so plot.svg is "
+            "After writing generated.py, run `uv run generated.py` so plot.svg is ",
             "produced in the current directory.",
             "Do not write secrets into any file.",
             "",
@@ -95,12 +126,17 @@ def _codex_prompt(job_id: str, prompt: str, context: dict[str, object]) -> str:
 def _run_codex_driver(job_id: str, work_dir: Path, prompt: str, context: dict[str, object]) -> int:
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        _append_log(work_dir, "OPENAI_API_KEY is required for codex mode\n")
-        return 3
+        try:
+            api_key = get_secret_provider().get_secret("OPENAI_API_KEY")
+        except MissingSecretError:
+            _append_log(work_dir, "OPENAI_API_KEY is required for codex mode\n")
+            return 3
 
     output_last_message = work_dir / "codex-last-message.md"
     command = build_codex_command(work_dir, output_last_message)
+    _prepare_codex_auth(api_key)
     env = os.environ.copy()
+    env["OPENAI_API_KEY"] = api_key
 
     completed = subprocess.run(
         command,

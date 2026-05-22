@@ -54,6 +54,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      azurite:
+        condition: service_started
     restart: "no"
 
   bootstrap:
@@ -76,6 +78,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      azurite:
+        condition: service_started
     restart: "no"
 
   web:
@@ -100,9 +104,13 @@ services:
     depends_on:
       bootstrap:
         condition: service_completed_successfully
+      azurite:
+        condition: service_started
 
   local-job-runner:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.plot-runner
     command: ["run_local_job_runner", "--poll-interval", "1"]
     environment:
       DJANGO_SECRET_KEY: docker-secret-key
@@ -111,16 +119,20 @@ services:
       DATABASE_URL: postgresql://hepdata:hepdata@postgres:5432/postgres
       QUEUE_BACKEND: azure
       ARTIFACT_STORAGE_BACKEND: azure
+      PLOT_DRIVER_EXECUTOR: codex
       BLOB_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;QueueEndpoint=http://azurite:10001/devstoreaccount1;TableEndpoint=http://azurite:10002/devstoreaccount1;
       AZURE_STORAGE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;QueueEndpoint=http://azurite:10001/devstoreaccount1;TableEndpoint=http://azurite:10002/devstoreaccount1;
       AZURE_QUEUE_ENDPOINT: http://azurite:10001/devstoreaccount1
       AZURE_BLOB_ENDPOINT: http://azurite:10000/devstoreaccount1
     volumes:
+      - codex-home:/codex
       - ./secrets:/app/secrets:ro
       - ./tmp:/app/tmp
     depends_on:
       bootstrap:
         condition: service_completed_successfully
+      azurite:
+        condition: service_started
 
   plot-runner:
     build:
@@ -141,12 +153,16 @@ services:
       AZURE_QUEUE_ENDPOINT: http://azurite:10001/devstoreaccount1
       AZURE_BLOB_ENDPOINT: http://azurite:10000/devstoreaccount1
     volumes:
+      - codex-home:/codex
       - ./secrets:/app/secrets:ro
       - ./tmp:/app/tmp
     depends_on:
       bootstrap:
         condition: service_completed_successfully
+      azurite:
+        condition: service_started
 
 volumes:
   postgres-data:
   azurite-data:
+  codex-home:

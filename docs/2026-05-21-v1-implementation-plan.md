@@ -55,7 +55,8 @@ Keep these boundaries small and testable:
 
 ### Commands / Processes
 
-- `manage.py runserver`: local web development.
+- `docker compose up --build`: default local web development.
+- `manage.py runserver`: host-only debugging path, not the default local setup.
 - `manage.py run_local_job_runner`: polls the local queue and processes one message at a time.
 - `plot-runner run --job-id <uuid>`: plot-runner contract. It loads job context from configured services, writes artifacts, and updates job status.
 - `docker compose up`: starts web, postgres, azurite, local-job-runner, and optionally plot-runner.
@@ -235,7 +236,8 @@ Connection to watch: use fakes for fast unit tests and Azurite/Postgres for inte
 - [x] Build the Codex prompt exactly from the spec pattern: `$iris-hep Please write a stand-alone python file that we can use uv to run (and auto install) that will do the following. It should produce a plot and a file comments.md with comments as output: <plot-question>`.
 - [x] Install or include the `iris-hep/marketplace` skills in the plot-runner image.
 - [x] Define the real plot-runner Dockerfile in this repo, including Codex installation/configuration plus the analysis dependencies needed for ROOT/Python/ServiceX workflows.
-- [ ] Run Codex with an OpenAI API key supplied at runtime, not baked into the image.
+- [x] Run Codex with an OpenAI API key supplied at runtime, not baked into the image.
+- [x] Make the default Compose local job runner use the Codex-backed plot-runner path instead of the fake executor.
 - [x] Enforce a configurable Codex/script execution timeout, defaulting to 10 minutes for initial implementation.
 - [x] On timeout, kill the active execution, upload any generated code, `comments.md`, plots, logs, or partial outputs that exist, and mark the job failed with a clear timeout message.
 - [ ] Capture generated code, `comments.md`, terminal log, plots, and bundles as artifacts.

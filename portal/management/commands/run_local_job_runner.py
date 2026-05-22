@@ -12,7 +12,7 @@ from portal.runner import run_command_plot_job
 
 
 class Command(BaseCommand):
-    help = "Poll the local queue and execute fake plot jobs."
+    help = "Poll the local queue and execute queued plot jobs."
 
     def add_arguments(self, parser):
         parser.add_argument("--once", action="store_true")
