@@ -120,6 +120,7 @@ services:
       QUEUE_BACKEND: azure
       ARTIFACT_STORAGE_BACKEND: azure
       PLOT_DRIVER_EXECUTOR: codex
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       BLOB_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;QueueEndpoint=http://azurite:10001/devstoreaccount1;TableEndpoint=http://azurite:10002/devstoreaccount1;
       AZURE_STORAGE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;QueueEndpoint=http://azurite:10001/devstoreaccount1;TableEndpoint=http://azurite:10002/devstoreaccount1;
       AZURE_QUEUE_ENDPOINT: http://azurite:10001/devstoreaccount1
@@ -148,6 +149,7 @@ services:
       QUEUE_BACKEND: azure
       ARTIFACT_STORAGE_BACKEND: azure
       PLOT_DRIVER_EXECUTOR: codex
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       PLOT_RUNNER_ROOT: /app/tmp/plot-runner
       AZURE_STORAGE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;QueueEndpoint=http://azurite:10001/devstoreaccount1;TableEndpoint=http://azurite:10002/devstoreaccount1;
       AZURE_QUEUE_ENDPOINT: http://azurite:10001/devstoreaccount1

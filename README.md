@@ -52,10 +52,10 @@ docker compose run --rm plot-runner run --job-id <uuid>
 That command writes a per-job workdir under `tmp/plot-runner/<job_id>` with the
 prompt, runner context, and generated files for inspection.
 
-The `plot-runner` service expects `OPENAI_API_KEY` at runtime when you switch it
-to Codex mode. For local development, the easiest path is to place the key in
-`secrets/OPENAI_API_KEY`; the plot-runner reads mounted secrets and also honors
-an explicit `OPENAI_API_KEY` environment variable. The Codex CLI is launched in
+The Codex-backed local runner expects `OPENAI_API_KEY` at runtime. Set it in
+the shell before `docker compose up --build`, or place it in
+`secrets/OPENAI_API_KEY`; the runner reads mounted secrets and also honors an
+explicit `OPENAI_API_KEY` environment variable. The Codex CLI is launched in
 its unlocked/bypass mode inside the container so it can run non-interactively.
 The key is not baked into the image. The Compose service also persists `/codex`
 so Codex keeps its config, auth state, and installed skills between runs.

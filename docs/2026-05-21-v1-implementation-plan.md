@@ -238,6 +238,7 @@ Connection to watch: use fakes for fast unit tests and Azurite/Postgres for inte
 - [x] Define the real plot-runner Dockerfile in this repo, including Codex installation/configuration plus the analysis dependencies needed for ROOT/Python/ServiceX workflows.
 - [x] Run Codex with an OpenAI API key supplied at runtime, not baked into the image.
 - [x] Make the default Compose local job runner use the Codex-backed plot-runner path instead of the fake executor.
+- [x] Pass `OPENAI_API_KEY` through the default Compose runner services so Codex can authenticate from `docker compose up`.
 - [x] Enforce a configurable Codex/script execution timeout, defaulting to 10 minutes for initial implementation.
 - [x] On timeout, kill the active execution, upload any generated code, `comments.md`, plots, logs, or partial outputs that exist, and mark the job failed with a clear timeout message.
 - [ ] Capture generated code, `comments.md`, terminal log, plots, and bundles as artifacts.
