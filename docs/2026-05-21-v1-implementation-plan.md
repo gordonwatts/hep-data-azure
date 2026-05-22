@@ -244,7 +244,7 @@ Connection to watch: use fakes for fast unit tests and Azurite/Postgres for inte
 - [ ] Capture generated code, `comments.md`, terminal log, plots, and bundles as artifacts.
 - [ ] Catch crashes and mark failed with sanitized exception summaries and log artifacts.
 - [x] Verification: unit tests around command construction/sanitization, fake subprocess tests for success/failure/timeout, partial artifact upload on timeout.
-- [ ] Verification: one local real-run smoke test when credentials and ServiceX config are available.
+- [x] Verification: one local real-run smoke test when credentials and ServiceX config are available.
 
 Connection to watch: the spec says outputs should be saved back to the database, but the architecture says large files belong in blob storage. Implement this as DB metadata plus failure text in DB, with generated code and other outputs as blob artifacts. The web page can display source code, but should request it separately after the main detail page has loaded.
 
